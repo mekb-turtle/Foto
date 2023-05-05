@@ -15,6 +15,9 @@
 #include <cairo/cairo-xlib.h>
 #include <IL/il.h>
 
+#include "./util.h"
+#include "./img.h"
+
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
 XClassHint *classHint = NULL;
@@ -48,12 +51,6 @@ void die(const char *msg, const char *msg2, int exitcode) {
 	if (msg2) eprintf("%s: %s\n", msg, msg2);
 	else if (msg) eprintf("%s\n", msg);
 	exit(exitcode);
-}
-
-void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsigned char g, unsigned char b) {
-	cairo_set_source_rgba(cr, (double)r / 255.0, (double)g / 255.0, (double)b / 255.0, 1.0);
-	cairo_paint(cr);
-	cairo_surface_flush(surface);
 }
 
 int usage(char *argv0) {
@@ -113,87 +110,15 @@ bool argch(char *flag, char *possible_flags) {
 	return true;
 }
 
-bool readfile(char *file, bool *is_stdin, char **filename, int blocksize, cairo_surface_t **surface, cairo_t **cr, ILuint *image, ILint *image_w, ILint *image_h) {
-	// gets a FILE* from the file name
-	FILE *fp;
-	bool f = false;
-	if (file[0] == '-' && file[1] == '\0') {
-		*is_stdin = true;
-		fp = stdin;
-		*filename = "stdin";
-	} else {
-		*is_stdin = false;
-		f = true;
-		fp = fopen(file, "rb"); // rb = read + binary
-		if (!fp) { die(file, strerror(errno), 1); }
-		char *slash = strrchr(file, '/'); // gets the basename of file path
-		*filename = slash ? slash + 1 : file;
-	}
-
-	// reads a FILE* and outputs the data
-	void *data = NULL;
-	size_t size = 0;
-	size_t read = 0;
-	while (!feof(fp) && !ferror(fp)) {
-		data = realloc(data, size + blocksize);
-		if (!data) die("Failed realloc", NULL, 1);
-		read = fread(data + size, 1, blocksize, fp);
-		if (read <= 0) break;
-		size += read;
-	}
-
-	bool ferr = ferror(fp);
-	if (f) fclose(fp); // close the file
-	if (ferr) {
-		free(data);
-		die("Failed to read file", NULL, 1);
-		return false;
-	}
-	
-	// read image
-	ILuint image_;
-	ilGenImages(1, &image_);
-	ilBindImage(image_);
-	bool ret = ilLoadL(IL_TYPE_UNKNOWN, data, size);
-	free(data);
-	if (!ret) die("Failed to read image", NULL, 1);
-
-	ILint image_w_ = ilGetInteger(IL_IMAGE_WIDTH);
-	ILint image_h_ = ilGetInteger(IL_IMAGE_HEIGHT);
-	*image_w = image_w_;
-	*image_h = image_h_;
-	ILint image_depth = ilGetInteger(IL_IMAGE_DEPTH);
-	ILint image_type = ilGetInteger(IL_IMAGE_TYPE);
-
-	ilConvertImage(IL_BGRA, IL_UNSIGNED_BYTE);
-
-	ILubyte *image_data = ilGetData();
-	if (!image_data) die("Failed to load image data", NULL, 1);
-
-	cairo_surface_t *image_surface_ = cairo_image_surface_create_for_data(
-			image_data, CAIRO_FORMAT_ARGB32, image_w_, image_h_,
-			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, image_w_));
-	if (!image_surface_) die("Failed to create cairo surface", NULL, 1);
-
-	cairo_t *cr_ = cairo_create(image_surface_);
-	if (!cr_) die("Failed to create cairo drawing", NULL, 1);
-
-	*surface = image_surface_;
-	*cr = cr_;
-	*image = image_;
-	
-	return ret;
-}
-
-void create_pixmap_surface(int window_x, int window_y, unsigned int depth, Visual *visual) {
-	pixmap = XCreatePixmap(dpy, win, window_x, window_y, depth);
+void create_pixmap_surface(struct vector2 size, unsigned int depth, Visual *visual) {
+	pixmap = XCreatePixmap(dpy, win, size.x, size.y, depth);
 	if (!pixmap) die("Failed to create pixmap", NULL, 1);
 
-	draw_surface = cairo_xlib_surface_create(dpy, pixmap, visual, window_x, window_y);
+	draw_surface = cairo_xlib_surface_create(dpy, pixmap, visual, size.x, size.y);
 	if (!draw_surface) die("Failed to create cairo surface", NULL, 1);
 
 	draw_cr = cairo_create(draw_surface);
-	if (!draw_cr) die("Failed to create cairo drawing", NULL, 1);
+	if (!draw_cr) die("Failed to create cairo context", NULL, 1);
 }
 
 int main(int argc, char *argv[]) {
@@ -214,14 +139,13 @@ int main(int argc, char *argv[]) {
 
 	bool flag_done = false, flag_hotreload = false, flag_borderless = false, flag_transparent = false;
 	char *file = NULL, *title = NULL, *class = NULL;
-	int window_x, window_y, window_w, window_h,
-		bg_r, bg_g, bg_b;
+	struct vector2 window_pos, window_size;
+	struct color bg = { 0, 0, 0 };
 	bool set_pos = false, set_size = false, set_bg = false;
 
 	{
 	char flag_set_title = 0, flag_set_class = 0, flag_set_pos = 0, flag_set_size = 0, flag_set_bg = 0;
-	char *str_x = NULL, *str_y = NULL, *str_w = NULL, *str_h = NULL,
-		 *str_r = NULL, *str_g = NULL, *str_b = NULL;
+	char *str_x = NULL, *str_y = NULL, *str_w = NULL, *str_h = NULL;
 
 	for (int i = 1; i < argc; ++i) {
 		if (argv[i][0] == '-' && argv[i][1] != '\0' && !flag_done) {
@@ -239,7 +163,7 @@ int main(int argc, char *argv[]) {
 			argoption('c', "--class", class, flag_set_class);
 			argoption('p', "--pos", str_x || str_y, flag_set_pos);
 			argoption('s', "--size", str_w || str_h, flag_set_size);
-			argoption('b', "--bg", str_r || str_g || str_b, flag_set_bg);
+			argoption('b', "--bg", set_bg, flag_set_bg);
 			argflag('h', "--hotreload", flag_hotreload, flag_set_hotreload);
 			argflag('B', "--borderless", flag_borderless, flag_set_borderless);
 			argflag('u', "--transparent", flag_transparent, flag_set_transparent);
@@ -259,36 +183,42 @@ int main(int argc, char *argv[]) {
 		} else if (flag_set_pos == 1) {
 			++flag_set_pos;
 			char *str_x = argv[i]; // set x of pos
-			if (!to_int(str_x, &window_x, true, false)) invalid;
+			if (!to_int(str_x, &window_pos.x, true, false)) invalid;
 		} else if (flag_set_pos == 2) {
 			set_pos = true;
 			flag_set_pos = 0;
 			char *str_y = argv[i]; // set y of pos
-			if (!to_int(str_y, &window_y, true, false)) invalid;
+			if (!to_int(str_y, &window_pos.y, true, false)) invalid;
 
 		} else if (flag_set_size == 1) {
 			++flag_set_size;
-			char *str_w = argv[i]; // set w of size
-			if (!to_int(str_w, &window_w, true, false)) invalid;
+			char *str_w = argv[i]; // set width of size
+			if (!to_int(str_w, &window_size.x, true, false)) invalid;
 		} else if (flag_set_size == 2) {
 			set_size = true;
 			flag_set_size = 0;
-			char *str_h = argv[i]; // set h of size
-			if (!to_int(str_h, &window_h, true, false)) invalid;
+			char *str_h = argv[i]; // set height of size
+			if (!to_int(str_h, &window_size.y, true, false)) invalid;
 
 		} else if (flag_set_bg == 1) {
 			++flag_set_bg;
 			char *str_r = argv[i]; // set r of bg
-			if (!to_int(str_r, &bg_r, true, false)) invalid;
+			int bg_;
+			if (!to_int(str_r, &bg_, true, false)) invalid;
+			bg.r = bg_;
 		} else if (flag_set_bg == 2) {
 			++flag_set_bg;
 			char *str_g = argv[i]; // set g of bg
-			if (!to_int(str_g, &bg_g, true, false)) invalid;
+			int bg_;
+			if (!to_int(str_g, &bg_, true, false)) invalid;
+			bg.g = bg_;
 		} else if (flag_set_bg == 3) {
 			set_bg = true;
 			flag_set_bg = 0;
 			char *str_b = argv[i]; // set b of bg
-			if (!to_int(str_b, &bg_b, true, false)) invalid;
+			int bg_;
+			if (!to_int(str_b, &bg_, true, false)) invalid;
+			bg.b = bg_;
 		} else if (!file) {
 			file = argv[i];
 		} else {
@@ -303,11 +233,11 @@ int main(int argc, char *argv[]) {
 	ilInit();
 	il_init = true;
 
-	ILint image_w, image_h;
+	struct vector2 image_size;
 
 	char *filename = NULL;
 	bool is_stdin;
-	if (!readfile(file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_w, &image_h)) die("Failed to read data", NULL, 1);
+	if (!readfile(die, file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
 	image_init = true;
 
 	struct stat st;
@@ -328,12 +258,8 @@ int main(int argc, char *argv[]) {
 
 	if (!set_size) {
 		// image size by default
-		window_w = image_w,
-		window_h = image_h;
-	}
-
-	if (!set_bg) {
-		bg_r = bg_g = bg_b = 0;
+		window_size.x = image_size.x,
+		window_size.y = image_size.y;
 	}
 
 	dpy = XOpenDisplay(NULL);
@@ -343,10 +269,9 @@ int main(int argc, char *argv[]) {
 	Window root = DefaultRootWindow(dpy);
 	Visual *visual = DefaultVisual(dpy, screen);
 	unsigned int depth = DefaultDepth(dpy, screen);
-	Colormap colormap = DefaultColormap(dpy, screen);
 	GC gc = DefaultGC(dpy, screen);
 
-	win = XCreateSimpleWindow(dpy, root, 0, 0, window_w, window_h, 0,
+	win = XCreateSimpleWindow(dpy, root, 0, 0, window_size.x, window_size.y, 0,
 			BlackPixel(dpy, screen), WhitePixel(dpy, screen));
 	if (!win) die("Cannot create window", NULL, 1);
 
@@ -367,17 +292,20 @@ int main(int argc, char *argv[]) {
 	classHint->res_class = class;
 	XSetClassHint(dpy, win, classHint);
 
-	if (set_pos) XMoveWindow(dpy, win, window_x, window_y);
+	if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 
 	sizeHint = XAllocSizeHints();
 	if (!sizeHint) die("Failed to allocate size hint", NULL, 1);
 	XSetWMNormalHints(dpy, win, sizeHint);
 
-	create_pixmap_surface(window_w, window_h, depth, visual);
+	create_pixmap_surface(window_size, depth, visual);
 
 	bool first_resize = true;
 	bool running = true;
     XEvent e;
+
+	struct dvector2 translate, scale, scale_inv;
+	letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
 
 	while (running) {
 		while (XPending(dpy)) {
@@ -386,41 +314,29 @@ int main(int argc, char *argv[]) {
 				case ConfigureNotify:
 					if (first_resize) {
 						first_resize = false;
-						if (set_size && (e.xconfigure.width != window_w || e.xconfigure.height != window_h)) {
+						if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
+						if (set_size && (e.xconfigure.width != window_size.x || e.xconfigure.height != window_size.y)) {
 							eprintf("Failed to resize window or did not resize to the correct size. Using a tiling window manager?\n");
 						}
 					}
-					if (e.xconfigure.width == window_w && e.xconfigure.height == window_h) break;
+					if (e.xconfigure.width == window_size.x && e.xconfigure.height == window_size.y) break;
 					cairo_destroy(draw_cr);
 					cairo_surface_destroy(draw_surface);
 					XFreePixmap(dpy, pixmap);
-					window_w = e.xconfigure.width;
-					window_h = e.xconfigure.height;
-					create_pixmap_surface(window_w, window_h, depth, visual);
+					window_size.x = e.xconfigure.width;
+					window_size.y = e.xconfigure.height;
+					create_pixmap_surface(window_size, depth, visual);
+					letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
 				case Expose:
-					clear_surface(draw_surface, draw_cr, bg_r, bg_g, bg_b);
-					double translate_x = 0, translate_y = 0, scale_w = 1, scale_h = 1, scale_i_w = 1, scale_i_h = 1;
-					double image_w_d = (double)image_w;
-					double image_h_d = (double)image_h;
-					double window_w_d = (double)window_w;
-					double window_h_d = (double)window_h;
-					if (image_w_d / image_h_d > window_w_d / window_h_d) {
-						translate_y = window_h_d / 2.0 - window_w_d / 2.0;
-						scale_w = scale_h = window_w_d / image_w_d;
-						scale_i_w = scale_i_h = image_w_d / window_w_d;
-					} else {
-						translate_x = window_w_d / 2.0 - window_h_d / 2.0;
-						scale_w = scale_h = window_h_d / image_h_d;
-						scale_i_w = scale_i_h = image_h_d / window_h_d;
-					}
-					cairo_translate(draw_cr, translate_x, translate_y);
-					cairo_scale(draw_cr, scale_w, scale_h);
+					clear_surface(draw_surface, draw_cr, bg.r, bg.g, bg.b);
+					cairo_translate(draw_cr, translate.x, translate.y);
+					cairo_scale(draw_cr, scale.x, scale.y);
 					cairo_set_source_surface(draw_cr, image_surface, 0, 0);
 					cairo_paint(draw_cr);
-					cairo_scale(draw_cr, scale_i_w, scale_i_h);
-					cairo_translate(draw_cr, -translate_x, -translate_y);
+					cairo_scale(draw_cr, scale_inv.x, scale_inv.y);
+					cairo_translate(draw_cr, -translate.x, -translate.y);
 					cairo_surface_flush(draw_surface);
-					XCopyArea(dpy, pixmap, win, gc, 0, 0, window_w, window_h, 0, 0);
+					XCopyArea(dpy, pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
 					XFlush(dpy);
 					break;
 				case ClientMessage:
@@ -441,7 +357,8 @@ int main(int argc, char *argv[]) {
 				image_cr = NULL;
 				image_surface = NULL;
 				image_init = false;
-				if (!readfile(file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_w, &image_h)) die("Failed to read data", NULL, 1);
+				if (!readfile(die, file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+				letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
 				image_init = true;
 				XClearWindow(dpy, win);
 			}
