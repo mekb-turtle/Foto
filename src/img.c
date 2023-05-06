@@ -10,7 +10,7 @@ void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsig
 	cairo_surface_flush(surface);
 }
 
-bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, int blocksize, cairo_surface_t **surface, cairo_t **cr, ILuint *image, int *image_w, int *image_h) {
+bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, int blocksize, ILubyte **image_data, cairo_surface_t **surface, cairo_t **cr, ILuint *image, int *image_w, int *image_h) {
 	// gets a FILE* from the file name
 	FILE *fp;
 	bool f = false;
@@ -62,11 +62,13 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 
 	ilConvertImage(IL_BGRA, IL_UNSIGNED_BYTE);
 
-	ILubyte *image_data = ilGetData();
-	if (!image_data) die("Failed to load image data", NULL, 1);
+	ILubyte *image_data_ = ilGetData();
+	if (!image_data_) die("Failed to load image data", NULL, 1);
+
+	*image_data = image_data_;
 
 	cairo_surface_t *image_surface_ = cairo_image_surface_create_for_data(
-			image_data, CAIRO_FORMAT_ARGB32, image_w_, image_h_,
+			image_data_, CAIRO_FORMAT_ARGB32, image_w_, image_h_,
 			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, image_w_));
 	if (!image_surface_) die("Failed to create cairo surface", NULL, 1);
 

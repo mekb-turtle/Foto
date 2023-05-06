@@ -12,7 +12,7 @@ CFLAGS = -Wall
 CPPFLAGS = 
 LDFLAGS =
 
-LDLIBS = -lbsd -lcairo -lIL -lX11
+LDLIBS = -lbsd -lcairo -lIL -lX11 -lXext -lm
 
 ifeq ($(RELEASE),1)
 	BUILD_DIR := $(BUILD_DIR)/release

@@ -8,9 +8,11 @@
 #include <bsd/inttypes.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#include <math.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/shape.h>
 #include <cairo/cairo.h>
 #include <cairo/cairo-xlib.h>
 #include <IL/il.h>
@@ -29,6 +31,14 @@ ILuint image;
 bool image_init = false;
 Pixmap pixmap;
 bool pixmap_init = false;
+Pixmap alpha_pixmap;
+bool alpha_pixmap_init = false;
+XImage *alpha_pixmap_image = NULL;
+XGCValues alpha_gc_values;
+GC alpha_gc;
+bool alpha_gc_init = false;
+ILint image_bpp;
+ILubyte *image_data = NULL;
 cairo_surface_t *image_surface = NULL;
 cairo_t *image_cr = NULL;
 cairo_surface_t *draw_surface = NULL;
@@ -40,6 +50,9 @@ void die(const char *msg, const char *msg2, int exitcode) {
 	if (image_surface) cairo_surface_destroy(image_surface);
 	if (draw_cr) cairo_destroy(draw_cr);
 	if (draw_surface) cairo_surface_destroy(draw_surface);
+	if (alpha_gc_init) XFreeGC(dpy, alpha_gc);
+	if (alpha_pixmap_image) XDestroyImage(alpha_pixmap_image);
+	if (alpha_pixmap_init) XFreePixmap(dpy, alpha_pixmap);
 	if (pixmap_init) XFreePixmap(dpy, pixmap);
 	if (image_init) ilDeleteImages(1, &image);
 	if (classHint) XFree(classHint);
@@ -110,9 +123,22 @@ bool argch(char *flag, char *possible_flags) {
 	return true;
 }
 
-void create_pixmap_surface(struct vector2 size, unsigned int depth, Visual *visual) {
+void create_pixmap_surface(struct vector2 size, unsigned int depth, Visual *visual, bool transparent, GC gc) {
 	pixmap = XCreatePixmap(dpy, win, size.x, size.y, depth);
 	if (!pixmap) die("Failed to create pixmap", NULL, 1);
+	pixmap_init = true;
+
+	if (transparent) {
+		alpha_pixmap = XCreatePixmap(dpy, win, size.x, size.y, 1);
+		if (!alpha_pixmap) die("Failed to create alpha pixmap", NULL, 1);
+		alpha_pixmap_init = true;
+
+		alpha_pixmap_image = XGetImage(dpy, alpha_pixmap, 0, 0, size.x, size.y, AllPlanes, ZPixmap);
+		if (!alpha_pixmap_image) die("Failed to get image of alpha pixmap", NULL, 1);
+
+		alpha_gc = XCreateGC(dpy, alpha_pixmap, 0, &alpha_gc_values);
+		alpha_gc_init = true;
+	}
 
 	draw_surface = cairo_xlib_surface_create(dpy, pixmap, visual, size.x, size.y);
 	if (!draw_surface) die("Failed to create cairo surface", NULL, 1);
@@ -237,7 +263,8 @@ int main(int argc, char *argv[]) {
 
 	char *filename = NULL;
 	bool is_stdin;
-	if (!readfile(die, file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+	if (!readfile(die, file, &is_stdin, &filename, 1024, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+	image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
 	image_init = true;
 
 	struct stat st;
@@ -275,6 +302,15 @@ int main(int argc, char *argv[]) {
 			BlackPixel(dpy, screen), WhitePixel(dpy, screen));
 	if (!win) die("Cannot create window", NULL, 1);
 
+	XSetWindowAttributes attrs;
+	unsigned long attrs_flags = CWBackPixel;
+	attrs.background_pixel = color_to_long(bg);
+	if (flag_borderless) {
+		attrs.override_redirect = True;
+		attrs_flags |= CWOverrideRedirect;
+	}
+	XChangeWindowAttributes(dpy, win, attrs_flags, &attrs);
+
 	Atom wm_protocols = XInternAtom(dpy, "WM_PROTOCOLS", False);
 	Atom wm_delete_window = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
 	XSetWMProtocols(dpy, win, &wm_delete_window, 1);
@@ -298,18 +334,22 @@ int main(int argc, char *argv[]) {
 	if (!sizeHint) die("Failed to allocate size hint", NULL, 1);
 	XSetWMNormalHints(dpy, win, sizeHint);
 
-	create_pixmap_surface(window_size, depth, visual);
+	create_pixmap_surface(window_size, depth, visual, flag_transparent, gc);
 
 	bool first_resize = true;
+	bool first_expose = true;
 	bool running = true;
     XEvent e;
 
-	struct dvector2 translate, scale, scale_inv;
-	letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
+	struct transform transform, old_transform;
+	letterboxing(window_size, image_size, &transform);
 
 	while (running) {
 		while (XPending(dpy)) {
-			XNextEvent(dpy, &e);
+			if (!first_expose)
+				XNextEvent(dpy, &e);
+			else
+				e.type = Expose;
 			switch (e.type) {
 				case ConfigureNotify:
 					if (first_resize) {
@@ -322,21 +362,57 @@ int main(int argc, char *argv[]) {
 					if (e.xconfigure.width == window_size.x && e.xconfigure.height == window_size.y) break;
 					cairo_destroy(draw_cr);
 					cairo_surface_destroy(draw_surface);
+					if (flag_transparent) {
+						XDestroyImage(alpha_pixmap_image);
+						alpha_pixmap_image = NULL;
+						XFreeGC(dpy, alpha_gc);
+						alpha_gc_init = false;
+						XFreePixmap(dpy, alpha_pixmap);
+						alpha_pixmap_init = false;
+					}
 					XFreePixmap(dpy, pixmap);
+					pixmap_init = false;
 					window_size.x = e.xconfigure.width;
 					window_size.y = e.xconfigure.height;
-					create_pixmap_surface(window_size, depth, visual);
-					letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
+					create_pixmap_surface(window_size, depth, visual, flag_transparent, gc);
+					letterboxing(window_size, image_size, &transform);
 				case Expose:
-					clear_surface(draw_surface, draw_cr, bg.r, bg.g, bg.b);
-					cairo_translate(draw_cr, translate.x, translate.y);
-					cairo_scale(draw_cr, scale.x, scale.y);
-					cairo_set_source_surface(draw_cr, image_surface, 0, 0);
-					cairo_paint(draw_cr);
-					cairo_scale(draw_cr, scale_inv.x, scale_inv.y);
-					cairo_translate(draw_cr, -translate.x, -translate.y);
-					cairo_surface_flush(draw_surface);
+					if (first_expose) {
+						first_expose = false;
+						letterboxing(window_size, image_size, &transform);
+					}
+					if (!transformcmp(old_transform, transform)) {
+						old_transform = transform;
+						clear_surface(draw_surface, draw_cr, bg.r, bg.g, bg.b);
+						cairo_translate(draw_cr, transform.translate.x, transform.translate.y);
+						cairo_scale(draw_cr, transform.scale, transform.scale);
+						cairo_set_source_surface(draw_cr, image_surface, 0, 0);
+						cairo_paint(draw_cr);
+						cairo_scale(draw_cr, transform.scale_inv, transform.scale_inv);
+						cairo_translate(draw_cr, -transform.translate.x, -transform.translate.y);
+						cairo_surface_flush(draw_surface);
+						if (flag_transparent) {
+							bool is_visible;
+							struct vector2 image_pos;
+							ILubyte pixel;
+							for (double y = 0; y < window_size.y; ++y)
+								for (double x = 0; x < window_size.x; ++x) {
+									if (x <  transform.translate.x                    || y <  transform.translate.y ||
+										x >= transform.translate.x + transform.size.x || y >= transform.translate.y + transform.size.y) is_visible = false;
+									else {
+										image_pos.x = round((x - transform.translate.x) * transform.scale_inv);
+										image_pos.y = round((y - transform.translate.y) * transform.scale_inv);
+										pixel = image_data[(image_pos.y * image_size.x + image_pos.x) * image_bpp + 3];
+										is_visible = pixel & 0x80;
+									}
+									XPutPixel(alpha_pixmap_image, x, y, is_visible ? 1 : 0);
+								}
+
+							XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_pixmap_image, 0, 0, 0, 0, window_size.x, window_size.y);
+						}
+					}
 					XCopyArea(dpy, pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
+					if (flag_transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
 					XFlush(dpy);
 					break;
 				case ClientMessage:
@@ -357,8 +433,9 @@ int main(int argc, char *argv[]) {
 				image_cr = NULL;
 				image_surface = NULL;
 				image_init = false;
-				if (!readfile(die, file, &is_stdin, &filename, 1024, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
-				letterboxing(window_size, image_size, &translate, &scale, &scale_inv);
+				if (!readfile(die, file, &is_stdin, &filename, 1024, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+				image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
+				letterboxing(window_size, image_size, &transform);
 				image_init = true;
 				XClearWindow(dpy, win);
 			}
