@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <math.h>
+#include <signal.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -20,15 +21,18 @@
 #include "./util.h"
 #include "./img.h"
 
+#define BLOCK 1024
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
-XClassHint *classHint = NULL;
-XSizeHints *sizeHint = NULL;
+XClassHint *class_hint = NULL;
+XSizeHints *size_hint = NULL;
 Window win;
 bool win_init = false;
 bool il_init = false;
-ILuint image;
+ILuint image = 0;
 bool image_init = false;
+ILuint new_image = 0;
+bool new_image_init = false;
 Pixmap pixmap;
 bool pixmap_init = false;
 Pixmap alpha_pixmap;
@@ -44,26 +48,48 @@ cairo_t *image_cr = NULL;
 cairo_surface_t *draw_surface = NULL;
 cairo_t *draw_cr = NULL;
 Display *dpy = NULL;
+bool exited = false;
+bool running = false;
 
 void die(const char *msg, const char *msg2, int exitcode) {
-	if (image_cr) cairo_destroy(image_cr);
-	if (image_surface) cairo_surface_destroy(image_surface);
-	if (draw_cr) cairo_destroy(draw_cr);
-	if (draw_surface) cairo_surface_destroy(draw_surface);
-	if (alpha_gc_init) XFreeGC(dpy, alpha_gc);
-	if (alpha_pixmap_image) XDestroyImage(alpha_pixmap_image);
-	if (alpha_pixmap_init) XFreePixmap(dpy, alpha_pixmap);
-	if (pixmap_init) XFreePixmap(dpy, pixmap);
-	if (image_init) ilDeleteImages(1, &image);
-	if (classHint) XFree(classHint);
-	if (sizeHint) XFree(sizeHint);
-	if (win_init) XDestroyWindow(dpy, win);
-	if (dpy) XCloseDisplay(dpy);
-	if (il_init) ilShutDown();
-	if (msg2 && !msg) { msg = msg2; msg2 = NULL; }
-	if (msg2) eprintf("%s: %s\n", msg, msg2);
-	else if (msg) eprintf("%s\n", msg);
+	running = false;
+	if (!exited) {
+		// print message
+		if (msg2 && !msg) { msg = msg2; msg2 = NULL; }
+		if (msg2) eprintf("%s: %s\n", msg, msg2);
+		else if (msg) eprintf("%s\n", msg);
+
+		// tidy everything up
+		exited = true;
+		if (image_cr) { cairo_destroy(image_cr); image_cr = NULL; }
+		if (image_surface) { cairo_surface_destroy(image_surface); image_surface = NULL; }
+		if (draw_surface) cairo_surface_flush(draw_surface);
+		if (draw_cr) { cairo_destroy(draw_cr); draw_cr = NULL; }
+		if (draw_surface) { cairo_surface_destroy(draw_surface); draw_surface = NULL; }
+		if (image_surface) cairo_surface_flush(image_surface);
+		if (image_cr) { cairo_destroy(image_cr); image_cr = NULL; }
+		if (image_surface) { cairo_surface_destroy(image_surface); image_surface = NULL; }
+		if (alpha_gc_init) { XFreeGC(dpy, alpha_gc); alpha_gc_init = false; }
+		if (alpha_pixmap_image) { XDestroyImage(alpha_pixmap_image); alpha_pixmap_image = NULL; }
+		if (alpha_pixmap_init) { XFreePixmap(dpy, alpha_pixmap); alpha_pixmap_init = false; }
+		if (pixmap_init) { XFreePixmap(dpy, pixmap); pixmap_init = false; }
+		if (new_image_init) { ilDeleteImages(1, &new_image); new_image_init = false;}
+		if (image_init) { ilDeleteImages(1, &image); image_init = false; }
+		if (class_hint) { XFree(class_hint); class_hint = NULL; }
+		if (size_hint) { XFree(size_hint); size_hint = NULL; }
+		if (win_init) { XDestroyWindow(dpy, win); win_init = false; }
+		if (dpy) { XCloseDisplay(dpy); dpy = NULL; }
+		if (il_init) { ilShutDown(); il_init = false; }
+	}
 	exit(exitcode);
+}
+
+void exit_handler() {
+	if (!running) {
+		die(NULL, NULL, 2);
+		return;
+	}
+	running = false;
 }
 
 int usage(char *argv0) {
@@ -74,9 +100,9 @@ int usage(char *argv0) {
 	-s --size <w> <h>       : set window size, default to image size\n\
 	-b --bg <r> <g> <b>     : set background colour where there is transparency\n\
 	-h --hotreload          : reload image when it is changed, file\n\
-	                          pointer is kept so deleting the file and\n\
-	                          recreating it probably won't work,\n\
-	                          will not work with stdin\n\
+		pointer is kept so deleting the file and\n\
+		recreating it probably won't work,\n\
+		will not work with stdin\n\
 	-B --borderless         : remove the border from the window\n\
 	-u --transparent        : window's transparency will match the image\n", argv0);
 	return 2;
@@ -184,7 +210,7 @@ int main(int argc, char *argv[]) {
 			if (flag_set_size) invalid; else
 			if (flag_set_bg) invalid; else
 
-			if (argv[i][1] != '-' && !argch(argv[i]+1, "tcprsbhBuT")) invalid;
+			if (argv[i][1] != '-' && !argch(argv[i]+1, "tcpsbhBuS")) invalid;
 			argoption('t', "--title", title, flag_set_title);
 			argoption('c', "--class", class, flag_set_class);
 			argoption('p', "--pos", str_x || str_y, flag_set_pos);
@@ -256,6 +282,13 @@ int main(int argc, char *argv[]) {
 	if (!file) invalid; // if file wasn't specified
 	}
 
+	signal(SIGHUP, exit_handler);
+	signal(SIGINT, exit_handler);
+	signal(SIGQUIT, exit_handler);
+	signal(SIGUSR1, exit_handler);
+	signal(SIGUSR2, exit_handler);
+	signal(SIGTERM, exit_handler);
+
 	ilInit();
 	il_init = true;
 
@@ -263,9 +296,9 @@ int main(int argc, char *argv[]) {
 
 	char *filename = NULL;
 	bool is_stdin;
-	if (!readfile(die, file, &is_stdin, &filename, 1024, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+	image_init = readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y);
+	if (!image_init) die("Failed to read data", NULL, 1);
 	image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
-	image_init = true;
 
 	struct stat st;
 	time_t prev_mtime = 0;
@@ -321,31 +354,31 @@ int main(int argc, char *argv[]) {
 
 	win_init = true;
 
-	classHint = XAllocClassHint();
-	if (!classHint) die("Failed to allocate class hint", NULL, 1);
-	XGetClassHint(dpy, win, classHint);
-	classHint->res_name = class;
-	classHint->res_class = class;
-	XSetClassHint(dpy, win, classHint);
+	class_hint = XAllocClassHint();
+	if (!class_hint) die("Failed to allocate class hint", NULL, 1);
+	XGetClassHint(dpy, win, class_hint);
+	class_hint->res_name = class;
+	class_hint->res_class = class;
+	XSetClassHint(dpy, win, class_hint);
 
 	if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 
-	sizeHint = XAllocSizeHints();
-	if (!sizeHint) die("Failed to allocate size hint", NULL, 1);
-	XSetWMNormalHints(dpy, win, sizeHint);
+	size_hint = XAllocSizeHints();
+	if (!size_hint) die("Failed to allocate size hint", NULL, 1);
+	XSetWMNormalHints(dpy, win, size_hint);
 
 	create_pixmap_surface(window_size, depth, visual, flag_transparent, gc);
 
 	bool first_resize = true;
 	bool first_expose = true;
-	bool running = true;
     XEvent e;
 
 	struct transform transform, old_transform;
 	letterboxing(window_size, image_size, &transform);
 
+	running = true;
 	while (running) {
-		while (XPending(dpy)) {
+		while (running && XPending(dpy)) {
 			if (!first_expose)
 				XNextEvent(dpy, &e);
 			else
@@ -423,17 +456,18 @@ int main(int argc, char *argv[]) {
 					break;
 			}
 		}
-		if (flag_hotreload) {
+		if (flag_hotreload && running) {
 			if (stat(file, &st) != 0) die(file, strerror(errno), 1);
 			if (st.st_mtime != prev_mtime) {
 				prev_mtime = st.st_mtime;
+				cairo_surface_flush(image_surface);
 				cairo_destroy(image_cr);
 				cairo_surface_destroy(image_surface);
 				ilDeleteImages(1, &image);
 				image_cr = NULL;
 				image_surface = NULL;
 				image_init = false;
-				if (!readfile(die, file, &is_stdin, &filename, 1024, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+				if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
 				image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
 				letterboxing(window_size, image_size, &transform);
 				image_init = true;
