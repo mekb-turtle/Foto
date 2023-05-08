@@ -27,7 +27,7 @@ endif
 
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-all: clean build
+all: build
 
 build: buildtext $(BIN_DIR)/$(EXEC) 
 	@if [ "$(RELEASE)" = "1" ]; then echo -e "\e[95m==> \e[0;1mStripping executable $(EXEC)…\e[0m"; strip --strip-unneeded $(BIN_DIR)/$(EXEC); fi
@@ -39,7 +39,7 @@ $(BIN_DIR)/$(EXEC): $(OBJS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@echo -e "\e[92m==> \e[0;1mCompiling $<…\e[0m"
-	@mkdir -p $(OBJ_DIR)
+	@mkdir -p $(dir $@)
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 buildtext:
