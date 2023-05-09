@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <math.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -368,10 +370,14 @@ int main(int argc, char *argv[]) {
 
 	bool first_resize = true;
 	bool first_expose = true;
+	bool hotreload = false;
     XEvent e;
 
 	struct transform transform, old_transform;
 	letterboxing(window_size, image_size, &transform);
+
+	unsigned long long file_last_checked = 0;
+	unsigned long long file_checked = 0;
 
 	running = true;
 	while (running) {
@@ -453,23 +459,31 @@ int main(int argc, char *argv[]) {
 					break;
 			}
 		}
-		if (flag_hotreload && running) {
-			if (stat(file, &st) != 0) die(file, strerror(errno), 1);
-			if (st.st_mtime != prev_mtime) {
-				prev_mtime = st.st_mtime;
-				cairo_surface_flush(image_surface);
-				cairo_destroy(image_cr);
-				cairo_surface_destroy(image_surface);
-				ilDeleteImages(1, &image);
-				image_cr = NULL;
-				image_surface = NULL;
-				image_init = false;
-				if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
-				image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
-				letterboxing(window_size, image_size, &transform);
-				image_init = true;
-				XClearWindow(dpy, win);
+		if (!is_stdin && flag_hotreload && running) {
+			file_checked = get_time();
+			if (file_checked > file_last_checked + 500) {
+				file_last_checked = file_checked;
+				if (stat(file, &st) != 0) die(file, strerror(errno), 1);
+				if (st.st_mtime != prev_mtime) {
+					prev_mtime = st.st_mtime;
+					hotreload = true;
+				}
 			}
+		}
+		if (hotreload) {
+			hotreload = false;
+			cairo_surface_flush(image_surface);
+			cairo_destroy(image_cr);
+			cairo_surface_destroy(image_surface);
+			ilDeleteImages(1, &image);
+			image_cr = NULL;
+			image_surface = NULL;
+			image_init = false;
+			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
+			image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
+			letterboxing(window_size, image_size, &transform);
+			image_init = true;
+			XClearWindow(dpy, win);
 		}
     }
 	die(NULL, NULL, 0);

@@ -1,4 +1,6 @@
 #include "./util.h"
+#include <sys/time.h>
+#include <stdio.h>
 
 unsigned long color_to_long(struct color color) {
 	return (color.r << 020) | (color.g << 010) | color.b;
@@ -44,4 +46,10 @@ bool vector2cmp(struct vector2 a, struct vector2 b) {
 
 bool dvector2cmp(struct dvector2 a, struct dvector2 b) {
 	return a.x == b.x && a.y == b.y;
+}
+
+unsigned long long get_time() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return ((unsigned long long)tv.tv_sec * 1000) + ((unsigned long long)tv.tv_usec / 1000);
 }

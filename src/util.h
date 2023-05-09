@@ -25,3 +25,4 @@ void letterboxing(struct vector2 window_size, struct vector2 image_size, struct 
 bool transformcmp(struct transform a, struct transform b);
 bool vector2cmp(struct vector2 a, struct vector2 b);
 bool dvector2cmp(struct dvector2 a, struct dvector2 b);
+unsigned long long get_time();
