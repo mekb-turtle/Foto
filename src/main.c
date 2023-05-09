@@ -94,17 +94,14 @@ void exit_handler() {
 
 int usage(char *argv0) {
 	eprintf("Usage: %s <file>\n\
-	-t --title <title>      : set window title\n\
-	-c --class <class>      : set window class name\n\
-	-p --pos <x> <y>        : set window position, default to center\n\
-	-s --size <w> <h>       : set window size, default to image size\n\
-	-b --bg <r> <g> <b>     : set background colour where there is transparency\n\
-	-h --hotreload          : reload image when it is changed, file\n\
-		pointer is kept so deleting the file and\n\
-		recreating it probably won't work,\n\
-		will not work with stdin\n\
-	-B --borderless         : remove the border from the window\n\
-	-u --transparent        : window's transparency will match the image\n", argv0);
+	-t, --title title        : set window title\n\
+	-c, --class class        : set window class name\n\
+	-p, --pos x y            : set window position, default to center\n\
+	-s, --size w h           : set window size, default to image size\n\
+	-b, --bg r g b           : set background colour where there is transparency\n\
+	-h, --hotreload          : reload image when it is changed, will not work with stdin\n\
+	-B, --borderless         : remove the border from the window\n\
+	-u, --transparent        : window's transparency will match the image\n", argv0);
 	return 2;
 }
 
@@ -210,7 +207,7 @@ int main(int argc, char *argv[]) {
 			if (flag_set_size) invalid; else
 			if (flag_set_bg) invalid; else
 
-			if (argv[i][1] != '-' && !argch(argv[i]+1, "tcpsbhBuS")) invalid;
+			if (argv[i][1] != '-' && !argch(argv[i]+1, "tcpsbhBu")) invalid;
 			argoption('t', "--title", title, flag_set_title);
 			argoption('c', "--class", class, flag_set_class);
 			argoption('p', "--pos", str_x || str_y, flag_set_pos);
