@@ -14,6 +14,10 @@ LDFLAGS =
 
 LDLIBS = -lbsd -lcairo -lIL -lX11 -lXext -lm
 
+ifeq ($(origin INSTALL_DIR),undefined)
+	INSTALL_DIR := /usr/local/bin/
+endif
+
 ifeq ($(RELEASE),1)
 	BUILD_DIR := $(BUILD_DIR)/release
 	RELEASE := 1
@@ -56,8 +60,8 @@ clean:
 install: build
 	@if [ "$(RELEASE)" != "1" ]; then printf "\e[1;93m> Installing requires you to be in release mode!\e[0m\n"; exit 1; fi
 	@printf "\e[1;93m> \e[0;1mInstalling %s…\e[0m\n" "$(EXEC)"
-	@sudo install -sDpg0 -o0 -m755 $(BIN_DIR)/$(EXEC) /usr/local/bin/
+	@install -Dpm755 $(BIN_DIR)/$(EXEC) "$(INSTALL_DIR)/"
 
 uninstall:
 	@printf "\e[1;93m> \e[0;1mUninstalling %s…\e[0m\n" "$(EXEC)"
-	@sudo rm /usr/local/bin/$(EXEC)
+	@rm /usr/local/bin/$(EXEC)
