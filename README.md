@@ -14,7 +14,7 @@ It uses DevIL to read the image, and Cairo and Xlib to display the image to the 
 - `pandoc` (only needed when building man pages)
 
 ### Installing:
-Arch Linux AUR: [foto](https://aur.archlinux.org/packages/foto), [foto-git](https://aur.archlinux.org/packages/foto)
+Arch Linux AUR: [foto](https://aur.archlinux.org/packages/foto), [foto-git](https://aur.archlinux.org/packages/foto-git)
 
 Manual:
 - `git clone https://github.com/mekb-turtle/foto`
