@@ -24,4 +24,4 @@ omit if you want latest commit
 - `make RELEASE=1 install`\
 install will run `build` and `man`\
 add `INSTALL_DIR=/path/to/dir` to specify where to install to, (`BIN_INSTALL_DIR` for binary or `MAN_INSTALL_DIR` for man pages)
-- `foto ~/
+- `foto /path/to/image.png`
