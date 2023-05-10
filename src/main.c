@@ -293,9 +293,8 @@ int main(int argc, char *argv[]) {
 
 	char *filename = NULL;
 	bool is_stdin;
-	image_init = readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y);
+	image_init = readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg);
 	if (!image_init) die("Failed to read data", NULL, 1);
-	image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
 
 	struct stat st;
 	time_t prev_mtime = 0;
@@ -477,8 +476,7 @@ int main(int argc, char *argv[]) {
 			image_cr = NULL;
 			image_surface = NULL;
 			image_init = false;
-			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size.x, &image_size.y)) die("Failed to read data", NULL, 1);
-			image_bpp = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
+			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg)) die("Failed to read data", NULL, 1);
 			letterboxing(window_size, image_size, &transform);
 			image_init = true;
 			XClearWindow(dpy, win);

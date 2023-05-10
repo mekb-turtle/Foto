@@ -1,6 +1,8 @@
 #include "./util.h"
 #include <sys/time.h>
 #include <stdio.h>
+#include <math.h>
+#include <limits.h>
 
 unsigned long color_to_long(struct color color) {
 	return (color.r << 020) | (color.g << 010) | color.b;
@@ -52,4 +54,16 @@ unsigned long long get_time() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return ((unsigned long long)tv.tv_sec * 1000) + ((unsigned long long)tv.tv_usec / 1000);
+}
+
+double lerp(double a, double b, double t) {
+	if (t == 0) return a;
+	if (t == 1) return b;
+	return (b-a)*t+a;
+}
+
+unsigned char lerpc(unsigned char a, unsigned char b, unsigned char t) {
+	if (t == 0) return a;
+	if (t == UCHAR_MAX) return b;
+	return (unsigned char)round(lerp((double)a, (double)b, ((double)t)/UCHAR_MAX));
 }

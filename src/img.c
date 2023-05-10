@@ -2,20 +2,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include "./img.h"
 
 void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsigned char g, unsigned char b) {
-	cairo_set_source_rgba(cr, (double)r / 255.0, (double)g / 255.0, (double)b / 255.0, 1.0);
+	cairo_set_source_rgba(cr, (double)r / (double)UCHAR_MAX, (double)g / (double)UCHAR_MAX, (double)b / (double)UCHAR_MAX, 1.0);
 	cairo_paint(cr);
 	cairo_surface_flush(surface);
 }
 
-bool readfilesurface(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, cairo_surface_t **surface, cairo_t **cr, ILuint *image, int *image_w, int *image_h) {
-	if (!readfile(die, file, is_stdin, filename, blocksize, image_data, image, image_w, image_h, IL_BGRA, IL_UNSIGNED_BYTE)) return false;
+bool readfilesurface(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, cairo_surface_t **surface, cairo_t **cr, ILuint *image, struct vector2 *image_size, ILint *image_bpp, bool apply_transparency, struct color apply_color) {
+	if (!readfile(die, file, is_stdin, filename, blocksize, image_data, image, image_size, image_bpp, IL_BGRA, IL_UNSIGNED_BYTE, apply_transparency, apply_color)) return false;
 
 	cairo_surface_t *image_surface_ = cairo_image_surface_create_for_data(
-			*image_data, CAIRO_FORMAT_ARGB32, *image_w, *image_h,
-			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, *image_w));
+			*image_data, CAIRO_FORMAT_ARGB32, image_size->x, image_size->y,
+			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, image_size->x));
 	if (!image_surface_) { die("Failed to create cairo surface", NULL, 1); return false; }
 
 	cairo_t *cr_ = cairo_create(image_surface_);
@@ -26,7 +27,7 @@ bool readfilesurface(void (*die)(const char*, const char*, int), char *file, boo
 	return true;
 }
 
-bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, ILuint *image, int *image_w, int *image_h, ILenum format, ILenum type) {
+bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, ILuint *image, struct vector2 *image_size, ILint *image_bpp, ILenum format, ILenum type, bool apply_transparency, struct color apply_color) {
 	// gets a FILE* from the file name
 	FILE *fp;
 	bool f = false;
@@ -59,28 +60,47 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	if (f) fclose(fp); // close the file
 	if (ferr) {
 		free(data);
-		die("Failed to read file", NULL, 1);
+		die(file, "Failed to read file", 1);
 		return false;
 	}
 	
 	// read image
 	ILuint image_ = 0;
 	ilGenImages(1, &image_);
-	if (!image_) { die("Failed to create image", NULL, 1); return false; }
+	if (!image_) { die(file, "Failed to create image", 1); return false; }
 	ilBindImage(image_);
 	bool ret = ilLoadL(IL_TYPE_UNKNOWN, data, size);
 	free(data);
-	if (!ret) { die("Failed to read image", NULL, 1); return false; }
+ 	if (!ret) { die(file, "Failed to read image, file is not recognized by DevIL", 1); return false; }
 
-	ILint image_w_ = ilGetInteger(IL_IMAGE_WIDTH);
-	ILint image_h_ = ilGetInteger(IL_IMAGE_HEIGHT);
-	*image_w = image_w_;
-	*image_h = image_h_;
+	struct vector2 image_size_ = { ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT) };
+	*image_size = image_size_;
 
-	ilConvertImage(format, type);
+	ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE);
 
 	ILubyte *image_data_ = ilGetData();
-	if (!image_data_) { die("Failed to load image data", NULL, 1); return false; }
+	if (!image_data_) { die(file, "Failed to get image data", 1); return false; }
+
+	ILint image_bpp_ = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
+	*image_bpp = image_bpp_;
+
+	if (apply_transparency) {
+		for (ILint y = 0; y < image_size_.x; ++y) {
+			for (ILint x = 0; x < image_size_.y; ++x) {
+				ILubyte *pix = &image_data_[(y * image_size_.y + x) * image_bpp_];
+				if (pix[3] != UCHAR_MAX) {
+					pix[0] = lerpc(apply_color.r, pix[0], pix[3]);
+					pix[1] = lerpc(apply_color.g, pix[1], pix[3]);
+					pix[2] = lerpc(apply_color.b, pix[2], pix[3]);
+				}
+			}
+		}
+	}
+
+	ilConvertImage(format, type);
+ 
+	image_data_ = ilGetData();
+	if (!image_data_) { die(file, "Failed to get image data", 1); return false; }
 
 	*image_data = image_data_;
 	return true;
