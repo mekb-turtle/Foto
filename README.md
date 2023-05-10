@@ -19,7 +19,6 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 ## Installing
 ### Arch-based
 If you use an AUR helper, use it instead, e.g `paru -S foto` or `paru -S foto-git`
-Using `makepkg`:
 ```bash
 git clone https://aur.archlinux.org/foto.git # use foto-git.git instead for latest commit
 cd foto
