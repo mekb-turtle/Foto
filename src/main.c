@@ -21,6 +21,12 @@
 #include "./util.h"
 #include "./img.h"
 
+#ifndef EXEC
+#define EXEC "foto"
+#endif
+#ifndef VERSION
+#define VERSION "N/A"
+#endif
 #define BLOCK 1024
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
@@ -92,18 +98,17 @@ void exit_handler() {
 	running = false;
 }
 
-int usage(char *argv0) {
-	eprintf("Usage: %s <file>\n\
+#define HELP_TEXT "Usage: "EXEC" <file>\n\
+	-h, --help               : Shows this help text\n\
+	-V, --version            : Shows the current version\n\
 	-t, --title title        : Sets the window title\n\
 	-c, --class class        : Sets the window class name\n\
 	-p, --pos x y            : Sets the window position\n\
 	-s, --size w h           : Sets the window size, defaults to the size of the image\n\
 	-b, --bg r g b           : Sets the background colour\n\
-	-h, --hotreload          : Reloads image when it is modified, will not work with stdin\n\
+	-r, --hotreload          : Reloads image when it is modified, will not work with stdin\n\
 	-B, --borderless         : Removes the border from the window\n\
-	-u, --transparent        : Makes the transparency of the window match the image\n", argv0);
-	return 2;
-}
+	-u, --transparent        : Makes the transparency of the window match the image\n"
 
 bool to_int(char *input, int *output, bool allow_zero, bool byte) {
 	if (!*input) return false;
@@ -171,7 +176,7 @@ void create_pixmap_surface(struct vector2 size, unsigned int depth, Visual *visu
 }
 
 int main(int argc, char *argv[]) {
-#define invalid return usage(argv[0])
+#define invalid return eprintf("Invalid usage, see --help\n"), 2
 #define argcmp(flag, shortflag, longflag) \
 		(strcmp(flag, longflag) == 0 || (flag[1] != '-' && strchr(flag+1, shortflag) != NULL))
 #define argflag(shortflag, longflag, set, set2) \
@@ -184,6 +189,11 @@ int main(int argc, char *argv[]) {
 	if (argcmp(argv[i], shortflag, longflag)) { \
 		if (failcondition) invalid; \
 		set = 1; \
+	}
+
+	if (argc <= 1) {
+		fputs(HELP_TEXT, stderr);
+		return 2;
 	}
 
 	bool flag_done = false, flag_hotreload = false, flag_borderless = false, flag_transparent = false;
@@ -207,13 +217,21 @@ int main(int argc, char *argv[]) {
 			if (flag_set_size) invalid; else
 			if (flag_set_bg) invalid; else
 
-			if (argv[i][1] != '-' && !argch(argv[i]+1, "tcpsbhBu")) invalid;
+			if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu")) invalid;
+			if (argcmp(argv[i], 'h', "--help")) {
+				fputs(HELP_TEXT, stdout);
+				return 0;
+			}
+			if (argcmp(argv[i], 'V', "--version")) {
+				printf("%s %s\n", EXEC, VERSION);
+				return 0;
+			}
 			argoption('t', "--title", title, flag_set_title);
 			argoption('c', "--class", class, flag_set_class);
 			argoption('p', "--pos", str_x || str_y, flag_set_pos);
 			argoption('s', "--size", str_w || str_h, flag_set_size);
 			argoption('b', "--bg", set_bg, flag_set_bg);
-			argflag('h', "--hotreload", flag_hotreload, flag_set_hotreload);
+			argflag('r', "--hotreload", flag_hotreload, flag_set_hotreload);
 			argflag('B', "--borderless", flag_borderless, flag_set_borderless);
 			argflag('u', "--transparent", flag_transparent, flag_set_transparent);
 
@@ -305,12 +323,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!title) {
-		size_t size = strlen(filename) + 32;
+		size_t size = strlen(EXEC) + strlen(filename) + 1;
 		title = malloc(size);
 		if (!title) die("Failed malloc", strerror(errno), errno);
-		snprintf(title, size, "foto: %s", filename);
+		snprintf(title, size, "%s: %s", EXEC, filename);
 	}
-	if (!class) class = "foto";
+	if (!class) class = EXEC;
 
 	if (!set_size) {
 		// image size by default

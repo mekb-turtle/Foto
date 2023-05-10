@@ -2,6 +2,10 @@
 
 local -a options
 options=(
+    '-h[Shows help text]'
+    '--help[Shows help text]'
+    '-V[Shows the current version]'
+    '--version[Shows the current version]'
     '-t[Sets the window title]'
     '--title[Sets the window title]'
     '-c[Sets the window class]'
@@ -12,7 +16,7 @@ options=(
     '--size[Sets the window size]'
     '-b[Sets the background color]'
     '--bg[Sets the background color]'
-    '-h[Reloads image when it is modified]'
+    '-r[Reloads image when it is modified]'
     '--hotreload[Reloads image when it is modified]'
     '-B[Removes the window border]'
     '--borderless[Removes the window border]'

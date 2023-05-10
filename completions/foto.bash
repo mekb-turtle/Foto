@@ -3,9 +3,17 @@ _foto() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-t --title -c --class -p --pos -s --size -b --bg -h --hotreload -B --borderless -u --transparent"
+    opts="-h --help -V --version -t --title -c --class -p --pos -s --size -b --bg -r --hotreload -B --borderless -u --transparent"
 
     case "${prev}" in
+        -h|--help)
+            COMPREPLY=()
+            return 0
+            ;;
+        -V|--version)
+            COMPREPLY=()
+            return 0
+            ;;
         -t|--title)
             COMPREPLY=()
             return 0
@@ -26,7 +34,7 @@ _foto() {
             COMPREPLY=()
             return 0
             ;;
-        -h|--hotreload)
+        -r|--hotreload)
             COMPREPLY=()
             return 0
             ;;

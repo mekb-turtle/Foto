@@ -1,6 +1,7 @@
-% FOTO(1)
-% mekb the turtle <mekb111@pm.me>
-% foto-1.0
+---
+title: "FOTO(1)"
+date: "foto-1.1.0"
+---
 
 # NAME
 
@@ -8,7 +9,7 @@
 
 # SYNOPSIS
 
-**foto** [-t title] [-c class] [\--pos x y] [\--size w h] [\--bg r g b] [\--hotreload] [\--borderless] [\--transparent] file
+**foto** [--help] [--version] [-t title] [-c class] [\--pos x y] [\--size w h] [\--bg r g b] [\--hotreload] [\--borderless] [\--transparent] file
 
 # DESCRIPTION
 
@@ -20,6 +21,12 @@ You can specify the position or size the window intially appears at, or even the
 It uses DevIL to read the image, then it uses Cairo and Xlib to display it to the user.
 
 # OPTIONS
+
+-h, \--help
+: Shows help text
+
+-V, \--version
+: Shows the current version
 
 -t, \--title *title*
 : Sets the window title
@@ -36,7 +43,7 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 -b, \--bg *r* *g* *b*
 : Sets the background colour
 
--h, \--hotreload
+-r, \--hotreload
 : Reloads image when it is modified, will not work with stdin
 
 -B, \--borderless
@@ -48,3 +55,8 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 # BUGS
 
 [Report bugs here](https://github.com/mekb-turtle/foto/issues)
+
+# AUTHORS
+
+mekb the turtle <mekb111@pm.me>\
+CallMeEchoCodes <romanbarrettsarpi@pm.me>
