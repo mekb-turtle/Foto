@@ -34,16 +34,16 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 : Sets the window size, defaults to the size of the image
 
 -b, \--bg *r* *g* *b*
-: Sets the background colour where there is transparency
+: Sets the background colour
 
 -h, \--hotreload
-: Reloads image when it is changed, will not work with stdin
+: Reloads image when it is modified, will not work with stdin
 
 -B, \--borderless
-: Remove the window border
+: Removes the border from the window
 
 -u, \--transparent
-: Make the window's transparency match the image
+: Makes the transparency of the window match the image
 
 # BUGS
 

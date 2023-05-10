@@ -94,14 +94,14 @@ void exit_handler() {
 
 int usage(char *argv0) {
 	eprintf("Usage: %s <file>\n\
-	-t, --title title        : set window title\n\
-	-c, --class class        : set window class name\n\
-	-p, --pos x y            : set window position, default to center\n\
-	-s, --size w h           : set window size, default to image size\n\
-	-b, --bg r g b           : set background colour where there is transparency\n\
-	-h, --hotreload          : reload image when it is changed, will not work with stdin\n\
-	-B, --borderless         : remove the border from the window\n\
-	-u, --transparent        : window's transparency will match the image\n", argv0);
+	-t, --title title        : Sets the window title\n\
+	-c, --class class        : Sets the window class name\n\
+	-p, --pos x y            : Sets the window position\n\
+	-s, --size w h           : Sets the window size, defaults to the size of the image\n\
+	-b, --bg r g b           : Sets the background colour\n\
+	-h, --hotreload          : Reloads image when it is modified, will not work with stdin\n\
+	-B, --borderless         : Removes the border from the window\n\
+	-u, --transparent        : Makes the transparency of the window match the image\n", argv0);
 	return 2;
 }
 

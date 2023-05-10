@@ -18,19 +18,38 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 
 ## Installing
 ### Arch-based
+If you use an AUR helper, use it instead, e.g `paru -S foto` or `paru -S foto-git`
+Using `makepkg`:
 ```bash
-# You can use an AUR helper if you like
-git clone https://aur.archlinux.org/foto.git
+git clone https://aur.archlinux.org/foto.git # use foto-git.git instead for latest commit
 cd foto
 makepkg -si
 ```
 
 ### Debian-based
+A .deb package is planned for an easier installation
 ```bash
-# This will install the latest git commit! There may be bugs.
-# A DEB package is planned for an easy install
-apt install build-essential libcairo2-dev libdevil-dev libx11-dev libxext-dev libbsd-dev pandoc
+sudo apt install build-essential libcairo2-dev libdevil-dev libx11-dev libxext-dev libbsd-dev pandoc
 git clone https://github.com/mekb-turtle/foto.git
 cd foto
-make install RELEASE=1
+git checkout "$(git describe --tags --abbrev=0)" # checkout to latest tag, omit for latest commit
+sudo make install RELEASE=1
 ```
+
+### Other distros
+Find the following dependencies in your package manager or elsewhere:
+- `libbsd`
+- `cairo`
+- `devil`
+- `libx11`
+- `libxext`
+- `pandoc` (only needed when building man pages)
+
+```bash
+git clone https://github.com/mekb-turtle/foto.git
+cd foto
+git checkout "$(git describe --tags --abbrev=0)" # checkout to latest tag, omit for latest commit
+sudo make install RELEASE=1
+```
+
+Specify `INSTALL_DIR` in `make install` to specify where to install to, read `Makefile` for more information
