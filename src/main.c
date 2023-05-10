@@ -10,8 +10,6 @@
 #include <sys/stat.h>
 #include <math.h>
 #include <signal.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
