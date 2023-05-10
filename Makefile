@@ -1,5 +1,5 @@
 EXEC = foto
-VERSION = v1.1.0
+VERSION = v1.1.1
 
 CC = cc
 CFLAGS = -Wall

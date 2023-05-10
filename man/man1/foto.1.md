@@ -1,6 +1,6 @@
 ---
 title: "FOTO(1)"
-date: "foto-1.1.0"
+date: "foto-1.1.1"
 ---
 
 # NAME
@@ -9,7 +9,7 @@ date: "foto-1.1.0"
 
 # SYNOPSIS
 
-**foto** [--help] [--version] [-t title] [-c class] [\--pos x y] [\--size w h] [\--bg r g b] [\--hotreload] [\--borderless] [\--transparent] file
+**foto** [\--help] [\--version] [-t title] [-c class] [\--pos x y] [\--size w h] [\--bg r g b] [\--hotreload] [\--borderless] [\--transparent] file
 
 # DESCRIPTION
 
