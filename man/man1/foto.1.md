@@ -22,28 +22,28 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 # OPTIONS
 
 -t, \--title *title*
-: set window title
+: Sets the window title
 
 -c, \--class *class*
-: set window class name
+: Sets the window class name
 
 -p, \--pos *x* *y*
-: set window position, default to center
+: Sets the window position
 
 -s, \--size *w* *h*
-: set window size, default to image size
+: Sets the window size, defaults to the size of the image
 
 -b, \--bg *r* *g* *b*
-: set background colour where there is transparency
+: Sets the background colour where there is transparency
 
 -h, \--hotreload
-: reload image when it is changed, will not work with stdin
+: Reloads image when it is changed, will not work with stdin
 
 -B, \--borderless
-: remove the border from the window
+: Remove the window border
 
 -u, \--transparent
-: window's transparency will match the image
+: Make the window's transparency match the image
 
 # BUGS
 
