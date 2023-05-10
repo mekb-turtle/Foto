@@ -18,6 +18,8 @@ SRCS := $(sort $(shell find '$(SRC_DIR)' -name '*.c'))
 MAN_DIR = man
 MAN_PAGES := $(sort $(shell find '$(MAN_DIR)' -name '*.[[:digit:]].md'))
 
+COMPLETIONS_DIR = completions
+
 ifeq ($(origin INSTALL_DIR),undefined)
 	ifeq ($(shell id -u),0)
 		INSTALL_DIR := '/usr/local'
@@ -32,6 +34,18 @@ endif
 
 ifeq ($(origin MAN_INSTALL_DIR),undefined)
 	MAN_INSTALL_DIR := '$(INSTALL_DIR)/share/man'
+endif
+
+ifeq ($(origin BASH_COMPLETIONS_INSTALL_DIR),undefined)
+	BASH_COMPLETIONS_INSTALL_DIR := '$(INSTALL_DIR)/share/bash-completion/completions'
+endif
+
+ifeq ($(origin ZSH_COMPLETIONS_INSTALL_DIR),undefined)
+	ZSH_COMPLETIONS_INSTALL_DIR := '$(INSTALL_DIR)/share/zsh/site-functions'
+endif
+
+ifeq ($(origin FISH_COMPLETIONS_INSTALL_DIR),undefined)
+	FISH_COMPLETIONS_INSTALL_DIR := '$(INSTALL_DIR)/share/fish/completions'
 endif
 
 ifeq ($(RELEASE),1)
@@ -91,6 +105,10 @@ install: build man
 	@install -Dpm755 -- '$(BIN_BUILD_DIR)/$(EXEC)' '$(BIN_INSTALL_DIR)/$(EXEC)'
 	@printf "\e[93m==> \e[0;1mInstalling man pages to %s…\e[0m\n" '$(MAN_INSTALL_DIR)'
 	$(foreach page,$(MAN_BUILT_PAGES),@install -Dpm644 -- '$(page)' '$(subst $(MAN_BUILD_DIR),$(MAN_INSTALL_DIR),$(page))')
+	@printf "\e[93m==> \e[0;1mInstalling Completions…\e[0m\n"
+	@install -Dpm755 -- '$(COMPLETIONS_DIR)/foto.bash' '$(BASH_COMPLETIONS_INSTALL_DIR)/foto'
+	@install -Dpm644 -- '$(COMPLETIONS_DIR)/foto.zsh' '$(ZSH_COMPLETIONS_INSTALL_DIR)/_foto'
+	@install -Dpm755 -- '$(COMPLETIONS_DIR)/foto.fish' '$(FISH_COMPLETIONS_INSTALL_DIR)/foto.fish'
 
 uninstall:
 	@if [ "$(RELEASE)" != "1" ]; then printf "\e[1;93m> Uninstalling requires you to be in release mode!\e[0m\n"; exit 1; fi
@@ -99,3 +117,7 @@ uninstall:
 	@rm -f -- '$(BIN_INSTALL_DIR)/$(EXEC)'
 	@printf "\e[93m==> \e[0;1mUninstalling man pages from %s…\e[0m\n" '$(MAN_INSTALL_DIR)'
 	$(foreach page,$(MAN_BUILT_PAGES),@rm -f -- '$(subst $(MAN_BUILD_DIR),$(MAN_INSTALL_DIR),$(page))')
+	@printf "\e[93m==> \e[0;1mUninstalling Completions…\e[0m\n"
+	@rm -f '$(BASH_COMPLETIONS_INSTALL_DIR)/foto'
+	@rm -f '$(ZSH_COMPLETIONS_INSTALL_DIR)/_foto'
+	@rm -f '$(FISH_COMPLETIONS_INSTALL_DIR)/foto.fish'
