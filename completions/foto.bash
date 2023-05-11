@@ -1,55 +1,36 @@
-_foto() {
-    local cur prev opts
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-h --help -V --version -t --title -c --class -p --pos -s --size -b --bg -r --hotreload -B --borderless -u --transparent"
+#!/usr/bin/bash
 
-    case "${prev}" in
-        -h|--help)
-            COMPREPLY=()
-            return 0
-            ;;
-        -V|--version)
-            COMPREPLY=()
-            return 0
-            ;;
-        -t|--title)
-            COMPREPLY=()
-            return 0
-            ;;
-        -c|--class)
-            COMPREPLY=()
-            return 0
-            ;;
-        -p|--pos)
-            COMPREPLY=()
-            return 0
-            ;;
-        -s|--size)
-            COMPREPLY=()
-            return 0
-            ;;
-        -b|--bg)
-            COMPREPLY=()
-            return 0
-            ;;
-        -r|--hotreload)
-            COMPREPLY=()
-            return 0
-            ;;
-        -B|--borderless)
-            COMPREPLY=()
-            return 0
-            ;;
-        -u|--transparent)
-            COMPREPLY=()
-            return 0
-            ;;
-        *)
-            COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-            return 0
-            ;;
-    esac
+_foto_completion() {
+	local opts3 opts2 opts1 opts0 opts
+	local oldifs="$IFS"
+	local isoldifs=
+	if [ -v IFS ]; then isoldifs=true; fi
+	function _contains_array() {
+		local a="$1"
+		local j
+		shift
+		for j in "$@"; do
+			[[ "$a" == "$j" ]] && return 0
+		done
+		return 1
+	}
+	opts3=('-b' '--bg')
+	opts2=("${opts3[@]}" '-p' '--pos' '-s' '--size')
+	opts1=("${opts2[@]}" '-t' '--title' '-c' '--class' '-p' '--pos' '-s' '--size' '-b' '--bg')
+	opts0=('-h' '--help' '-V' '--version')
+
+	if _contains_array "${COMP_WORDS[COMP_CWORD-3]}" "${opts3[@]}" || \
+		_contains_array "${COMP_WORDS[COMP_CWORD-2]}" "${opts2[@]}" || \
+		_contains_array "${COMP_WORDS[COMP_CWORD-1]}" "${opts1[@]}"; then
+		return
+	fi
+
+	IFS=" "
+	opts="${opts3[*]} ${opts2[*]} ${opts1[*]} ${opts0[*]} -- -"
+	IFS=$'\n'
+	COMPREPLY=($(IFS=" " compgen -W "${opts}" -f -- "${COMP_WORDS[COMP_CWORD]}"))
+	unset IFS
+	if [[ -n "$isoldifs" ]]; then IFS="$oldifs"; fi
 }
-complete -F _foto foto
+
+complete -F _foto_completion -o filenames -o nosort foto
