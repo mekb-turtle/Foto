@@ -428,8 +428,8 @@ int main(int argc, char *argv[]) {
 					letterboxing(window_size, image_size, &transform);
 				case Expose:
 					if (first_expose) {
-						first_expose = false;
 						letterboxing(window_size, image_size, &transform);
+						first_expose = false;
 					}
 					if (!transformcmp(old_transform, transform)) {
 						old_transform = transform;
@@ -461,6 +461,7 @@ int main(int argc, char *argv[]) {
 							XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_pixmap_image, 0, 0, 0, 0, window_size.x, window_size.y);
 						}
 					}
+					XSetWindowBackgroundPixmap(dpy, win, pixmap);
 					XCopyArea(dpy, pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
 					if (flag_transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
 					XFlush(dpy);
