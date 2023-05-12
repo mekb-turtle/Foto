@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
 			if (argv[i][1] == '-' && argv[i][2] == '\0') {
 				flag_done = 1; // finish flags/options
 			} else {
-				// if we try to put a flag/option before finishing the last option 
+				// if we try to put a flag/option before finishing the last option
 				if (flag_set_title || flag_set_class || flag_set_pos || flag_set_size || flag_set_bg) invalid;
 
 				if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu")) invalid;

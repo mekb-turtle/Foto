@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <magic.h>
 #include "./img.h"
 
 void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsigned char g, unsigned char b) {
@@ -63,15 +64,41 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 		die(file, "Failed to read file", 1);
 		return false;
 	}
-	
+
+	// detect file type
+	magic_t magic = magic_open(MAGIC_MIME_TYPE);
+	if (magic_load(magic, NULL) != 0) {
+		free(data);
+		die("Failed to load magic", NULL, 1); return false;
+	}
+
+	const char *file_type = magic_buffer(magic, data, size);
+	if (!file_type) {
+		magic_close(magic);
+		free(data);
+		die(file, "Failed to determine file type", 1);
+	}
+
+	if (strstr(file_type, "image/") != NULL) {
+		// file is image, we don't need to do anything
+	} else {
+		magic_close(magic);
+		free(data);
+		die(file, "Not an image or audio", 1);
+	}
+	magic_close(magic);
+
 	// read image
 	ILuint image_ = 0;
 	ilGenImages(1, &image_);
-	if (!image_) { die(file, "Failed to create image", 1); return false; }
+	if (!image_) {
+		free(data);
+		die(file, "Failed to create image", 1); return false;
+	}
 	ilBindImage(image_);
 	bool ret = ilLoadL(IL_TYPE_UNKNOWN, data, size);
 	free(data);
- 	if (!ret) { die(file, "Failed to read image, file is not recognized by DevIL", 1); return false; }
+ 	if (!ret) { die(file, "Failed to read image, image is not recognized by DevIL", 1); return false; }
 
 	struct vector2 image_size_ = { ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT) };
 	*image_size = image_size_;
@@ -98,7 +125,7 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	}
 
 	ilConvertImage(format, type);
- 
+
 	image_data_ = ilGetData();
 	if (!image_data_) { die(file, "Failed to get image data", 1); return false; }
 
