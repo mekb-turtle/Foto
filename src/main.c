@@ -208,37 +208,36 @@ int main(int argc, char *argv[]) {
 
 	for (int i = 1; i < argc; ++i) {
 		if (argv[i][0] == '-' && argv[i][1] != '\0' && !flag_done) {
-			if (argv[i][1] == '-' && argv[i][2] == '\0') flag_done = 1; else // finish flags/options
+			if (argv[i][1] == '-' && argv[i][2] == '\0') {
+				flag_done = 1; // finish flags/options
+			} else {
+				// if we try to put a flag/option before finishing the last option 
+				if (flag_set_title || flag_set_class || flag_set_pos || flag_set_size || flag_set_bg) invalid;
 
-			// if we try to put a flag/option before finishing the last option 
-			if (flag_set_title) invalid; else
-			if (flag_set_class) invalid; else
-			if (flag_set_pos) invalid; else
-			if (flag_set_size) invalid; else
-			if (flag_set_bg) invalid; else
+				if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu")) invalid;
 
-			if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu")) invalid;
-			if (argcmp(argv[i], 'h', "--help")) {
-				fputs(HELP_TEXT, stdout);
-				return 0;
+				if (argcmp(argv[i], 'h', "--help")) {
+					fputs(HELP_TEXT, stdout);
+					return 0;
+				}
+				if (argcmp(argv[i], 'V', "--version")) {
+					printf("%s %s\n", EXEC, VERSION);
+					return 0;
+				}
+				argoption('t', "--title", title, flag_set_title);
+				argoption('c', "--class", class, flag_set_class);
+				argoption('p', "--pos", str_x || str_y, flag_set_pos);
+				argoption('s', "--size", str_w || str_h, flag_set_size);
+				argoption('b', "--bg", set_bg, flag_set_bg);
+				argflag('r', "--hotreload", flag_hotreload, flag_set_hotreload);
+				argflag('B', "--borderless", flag_borderless, flag_set_borderless);
+				argflag('u', "--transparent", flag_transparent, flag_set_transparent);
+
+				// prevent setting multiple options at once or invalid flag
+				char total = flag_set_title + flag_set_class + flag_set_pos + flag_set_size + flag_set_bg;
+				if (total > 1 || (total == 0 && !(flag_set_hotreload || flag_set_borderless || flag_set_transparent)))
+					invalid;
 			}
-			if (argcmp(argv[i], 'V', "--version")) {
-				printf("%s %s\n", EXEC, VERSION);
-				return 0;
-			}
-			argoption('t', "--title", title, flag_set_title);
-			argoption('c', "--class", class, flag_set_class);
-			argoption('p', "--pos", str_x || str_y, flag_set_pos);
-			argoption('s', "--size", str_w || str_h, flag_set_size);
-			argoption('b', "--bg", set_bg, flag_set_bg);
-			argflag('r', "--hotreload", flag_hotreload, flag_set_hotreload);
-			argflag('B', "--borderless", flag_borderless, flag_set_borderless);
-			argflag('u', "--transparent", flag_transparent, flag_set_transparent);
-
-			// prevent setting multiple options at once or invalid flag
-			char total = flag_set_title + flag_set_class + flag_set_pos + flag_set_size + flag_set_bg;
-			if (total > 1 || (total == 0 && !(flag_set_hotreload || flag_set_borderless || flag_set_transparent)))
-				invalid;
 		} else if (flag_set_title) {
 			flag_set_title = 0;
 			title = argv[i]; // set title option

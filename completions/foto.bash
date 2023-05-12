@@ -27,8 +27,17 @@ _foto_completion() {
 		return
 	fi
 
+	local flag_done=
+	for (( i=0; i<"${#COMP_WORDS[@]}"; i++ )); do
+		if [[ "${COMP_WORDS[i]}" == "--" ]]; then flag_done=1; fi
+		if [[ "$i" -eq "$COMP_CWORD" ]]; then break; fi
+	done
+
 	IFS=" "
-	opts="${opts3[*]} ${opts2[*]} ${opts1[*]} ${opts0[*]} -- -"
+	opts="-"
+	if [[ -z "$flag_done" ]]; then
+		opts="${opts3[*]} ${opts2[*]} ${opts1[*]} ${opts0[*]} -- $opts"
+	fi
 	IFS=$'\n'
 	COMPREPLY=($(IFS=" " compgen -W "${opts}" -f -- "${COMP_WORDS[COMP_CWORD]}"))
 
