@@ -1,6 +1,6 @@
 ---
 title: "FOTO(1)"
-date: "foto-1.1.1"
+date: "foto-1.1.2"
 ---
 
 # NAME
