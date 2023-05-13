@@ -335,6 +335,8 @@ int main(int argc, char *argv[]) {
 		window_size.y = image_size.y;
 	}
 
+	if (window_size.x < 10 || window_size.y < 10) die("Window size too small", NULL, 1);
+
 	dpy = XOpenDisplay(NULL);
 	if (!dpy) die("Cannot open display", NULL, 1);
 
