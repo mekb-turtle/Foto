@@ -43,6 +43,8 @@ Find the following dependencies in your package manager or elsewhere:
 - `libx11`
 - `libxext`
 - `pandoc` (only needed when building man pages)
+- `file`/`magick` (usually comes with your system)
+- `libm`/`math` (usually comes with your system)
 
 ```bash
 git clone https://github.com/mekb-turtle/foto.git
