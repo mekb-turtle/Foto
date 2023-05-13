@@ -19,7 +19,7 @@ _foto_completion() {
 	opts3=('-b' '--bg')
 	opts2=("${opts3[@]}" '-p' '--pos' '-s' '--size')
 	opts1=("${opts2[@]}" '-t' '--title' '-c' '--class' '-p' '--pos' '-s' '--size' '-b' '--bg')
-	opts0=('-h' '--help' '-V' '--version')
+	opts0=('-h' '--help' '-V' '--version' '-1' '--sigusr1' '-2' '--sigusr2')
 
 	if _foto_completion_contains_array "${COMP_WORDS[COMP_CWORD-3]}" "${opts3[@]}" || \
 		_foto_completion_contains_array "${COMP_WORDS[COMP_CWORD-2]}" "${opts2[@]}" || \

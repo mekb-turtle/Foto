@@ -1,6 +1,6 @@
 ---
 title: "FOTO(1)"
-date: "foto-1.1.3"
+date: "foto-INSERT_VERSION_HERE"
 ---
 
 # NAME
@@ -51,6 +51,12 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 
 -u, \--transparent
 : Makes the transparency of the window match the image
+
+-1, \--sigusr1
+: Allows the SIGUSR1 signal to resize the window to the size of the image
+
+-2, \--sigusr2
+: Allows the SIGUSR2 signal to reload the image on demand
 
 # BUGS
 

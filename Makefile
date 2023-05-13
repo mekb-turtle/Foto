@@ -1,5 +1,5 @@
 EXEC = foto
-VERSION = v1.1.3
+VERSION = v1.2.0
 
 CC = cc
 CFLAGS = -Wall
@@ -99,7 +99,7 @@ man: manbuildtext $(MAN_BUILT_PAGES)
 $(MAN_BUILD_DIR)/%: $(MAN_DIR)/%.md
 	@printf "\e[96m==> \e[0;1mCompiling man page %s…\e[0m\n" '$<'
 	@mkdir -p '$(dir $@)'
-	@pandoc -s -f markdown -t man '$<' -o '$@'
+	@sed 's/INSERT_VERSION_HERE/$(VERSION)/g' < '$<' | pandoc -s -f markdown -t man - -o '$@'
 
 clean:
 	@printf "\e[1;96m> \e[0;1mCleaning…\e[0m\n"

@@ -22,6 +22,10 @@ options=(
     '--borderless[Removes the window border]'
     '-u[Make the windows transparency match the image transparancy]'
     '--transparent[Make the windows transparency match the image transparency]'
+    '-1[Allows the SIGUSR1 signal to resize the window to the size of the image]'
+    '--sigusr1[Allows the SIGUSR1 signal to resize the window to the size of the image]'
+    '-2[Allows the SIGUSR2 signal to reload the image on demand]'
+    '--sigusr2[Allows the SIGUSR2 signal to reload the image on demand]'
 )
 
 _arguments "${options[@]}"
