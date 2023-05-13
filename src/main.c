@@ -56,6 +56,8 @@ cairo_t *draw_cr = NULL;
 Display *dpy = NULL;
 bool exited = false;
 bool running = false;
+bool received_resize = false;
+bool received_reload = false;
 
 void die(const char *msg, const char *msg2, int exitcode) {
 	running = false;
@@ -96,6 +98,16 @@ void exit_handler() {
 		return;
 	}
 	running = false;
+}
+
+void null_handler() {}
+
+void sigusr1_handler() {
+	received_resize = true;
+}
+
+void sigusr2_handler() {
+	received_reload = true;
 }
 
 #define HELP_TEXT "Usage: "EXEC" <file>\n\
@@ -196,7 +208,8 @@ int main(int argc, char *argv[]) {
 		return 2;
 	}
 
-	bool flag_done = false, flag_hotreload = false, flag_borderless = false, flag_transparent = false;
+	bool flag_done = false, flag_hotreload = false, flag_borderless = false, flag_transparent = false,
+		 flag_sigusr1 = false, flag_sigusr2 = false;
 	char *file = NULL, *title = NULL, *class = NULL;
 	struct vector2 window_pos, window_size;
 	struct color bg = { 0, 0, 0 };
@@ -214,7 +227,7 @@ int main(int argc, char *argv[]) {
 				// if we try to put a flag/option before finishing the last option
 				if (flag_set_title || flag_set_class || flag_set_pos || flag_set_size || flag_set_bg) invalid;
 
-				if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu")) invalid;
+				if (argv[i][1] != '-' && !argch(argv[i]+1, "hVtcpsbrBu12")) invalid;
 
 				if (argcmp(argv[i], 'h', "--help")) {
 					fputs(HELP_TEXT, stdout);
@@ -232,10 +245,12 @@ int main(int argc, char *argv[]) {
 				argflag('r', "--hotreload", flag_hotreload, flag_set_hotreload);
 				argflag('B', "--borderless", flag_borderless, flag_set_borderless);
 				argflag('u', "--transparent", flag_transparent, flag_set_transparent);
+				argflag('1', "--sigusr1", flag_sigusr1, flag_set_sigusr1);
+				argflag('2', "--sigusr2", flag_sigusr2, flag_set_sigusr2);
 
 				// prevent setting multiple options at once or invalid flag
 				char total = flag_set_title + flag_set_class + flag_set_pos + flag_set_size + flag_set_bg;
-				if (total > 1 || (total == 0 && !(flag_set_hotreload || flag_set_borderless || flag_set_transparent)))
+				if (total > 1 || (total == 0 && !(flag_set_hotreload || flag_set_borderless || flag_set_transparent || flag_set_sigusr1 || flag_set_sigusr2)))
 					invalid;
 			}
 		} else if (flag_set_title) {
@@ -299,8 +314,8 @@ int main(int argc, char *argv[]) {
 	signal(SIGHUP, exit_handler);
 	signal(SIGINT, exit_handler);
 	signal(SIGQUIT, exit_handler);
-	signal(SIGUSR1, exit_handler);
-	signal(SIGUSR2, exit_handler);
+	signal(SIGUSR1, flag_sigusr1 ? sigusr1_handler : null_handler);
+	signal(SIGUSR2, flag_sigusr2 ? sigusr2_handler : null_handler);
 	signal(SIGTERM, exit_handler);
 
 	ilInit();
@@ -395,9 +410,50 @@ int main(int argc, char *argv[]) {
 	unsigned long long file_last_checked = 0;
 	unsigned long long file_checked = 0;
 
+	received_resize = received_reload = false;
 	running = true;
 	while (running) {
-		while (running && XPending(dpy)) {
+		if (received_resize) {
+			received_resize = false;
+			window_size.x = image_size.x,
+			window_size.y = image_size.y;
+			XResizeWindow(dpy, win, window_size.x, window_size.y);
+			create_pixmap_surface(window_size, depth, visual, flag_transparent, gc);
+			letterboxing(window_size, image_size, &transform);
+			first_expose = true;
+		}
+		if (received_reload) {
+			received_reload = false;
+			file_checked = get_time();
+			hotreload = true;
+		}
+		if (!is_stdin && flag_hotreload && running && !hotreload) {
+			file_checked = get_time();
+			if (file_checked > file_last_checked + 500) {
+				file_last_checked = file_checked;
+				if (stat(file, &st) != 0) die(file, strerror(errno), 1);
+				if (st.st_mtime != prev_mtime) {
+					prev_mtime = st.st_mtime;
+					hotreload = true;
+				}
+			}
+		}
+		if (hotreload) {
+			received_reload = false;
+			hotreload = false;
+			cairo_surface_flush(image_surface);
+			cairo_destroy(image_cr);
+			cairo_surface_destroy(image_surface);
+			ilDeleteImages(1, &image);
+			image_cr = NULL;
+			image_surface = NULL;
+			image_init = false;
+			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg)) die("Failed to read data", NULL, 1);
+			letterboxing(window_size, image_size, &transform);
+			image_init = true;
+			first_expose = true;
+		}
+		while (running && (first_expose || XPending(dpy))) {
 			if (!first_expose)
 				XNextEvent(dpy, &e);
 			else
@@ -475,31 +531,6 @@ int main(int argc, char *argv[]) {
 					}
 					break;
 			}
-		}
-		if (!is_stdin && flag_hotreload && running) {
-			file_checked = get_time();
-			if (file_checked > file_last_checked + 500) {
-				file_last_checked = file_checked;
-				if (stat(file, &st) != 0) die(file, strerror(errno), 1);
-				if (st.st_mtime != prev_mtime) {
-					prev_mtime = st.st_mtime;
-					hotreload = true;
-				}
-			}
-		}
-		if (hotreload) {
-			hotreload = false;
-			cairo_surface_flush(image_surface);
-			cairo_destroy(image_cr);
-			cairo_surface_destroy(image_surface);
-			ilDeleteImages(1, &image);
-			image_cr = NULL;
-			image_surface = NULL;
-			image_init = false;
-			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg)) die("Failed to read data", NULL, 1);
-			letterboxing(window_size, image_size, &transform);
-			image_init = true;
-			XClearWindow(dpy, win);
 		}
     }
 	die(NULL, NULL, 0);
