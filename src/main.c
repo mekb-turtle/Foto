@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!title) {
-		size_t size = strlen(EXEC) + strlen(filename) + 1;
+		size_t size = strlen(EXEC) + strlen(filename) + 16;
 		title = malloc(size);
 		if (!title) die("Failed malloc", strerror(errno), errno);
 		snprintf(title, size, "%s: %s", EXEC, filename);
