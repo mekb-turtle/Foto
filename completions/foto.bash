@@ -39,6 +39,7 @@ _foto_completion() {
 		opts="${opts3[*]} ${opts2[*]} ${opts1[*]} ${opts0[*]} -- $opts"
 	fi
 	IFS=$'\n'
+	# shellcheck disable=SC2207
 	COMPREPLY=($(IFS=" " compgen -W "${opts}" -f -- "${COMP_WORDS[COMP_CWORD]}"))
 
 	unset IFS
