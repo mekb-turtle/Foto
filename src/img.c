@@ -28,6 +28,12 @@ bool readfilesurface(void (*die)(const char*, const char*, int), char *file, boo
 	return true;
 }
 
+bool strstarts(const char *str, const char *substr) {
+	size_t substrlen = strlen(substr);
+	if (strlen(str) < substrlen) return false;
+	return strncmp(str, substr, substrlen) == 0;
+}
+
 bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, ILuint *image, struct vector2 *image_size, ILint *image_bpp, ILenum format, ILenum type, bool apply_transparency, struct color apply_color) {
 	// gets a FILE* from the file name
 	FILE *fp;
@@ -79,12 +85,13 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 		die(file, "Failed to determine file type", 1);
 	}
 
-	if (strstr(file_type, "image/") != NULL) {
+	if (strstarts(file_type, "image/")) {
 		// file is image, we don't need to do anything
 	} else {
 		magic_close(magic);
 		free(data);
-		die(file, "Not an image or audio", 1);
+		die(file, "Not an image file", 1);
+		return false;
 	}
 	magic_close(magic);
 
