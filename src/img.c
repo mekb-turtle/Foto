@@ -4,7 +4,10 @@
 #include <errno.h>
 #include <limits.h>
 #include <magic.h>
+
+#include "./main.h"
 #include "./img.h"
+#include "./cover.h"
 
 void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsigned char g, unsigned char b) {
 	cairo_set_source_rgba(cr, (double)r / (double)UCHAR_MAX, (double)g / (double)UCHAR_MAX, (double)b / (double)UCHAR_MAX, 1.0);
@@ -12,16 +15,16 @@ void clear_surface(cairo_surface_t *surface, cairo_t *cr, unsigned char r, unsig
 	cairo_surface_flush(surface);
 }
 
-bool readfilesurface(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, cairo_surface_t **surface, cairo_t **cr, ILuint *image, struct vector2 *image_size, ILint *image_bpp, bool apply_transparency, struct color apply_color) {
-	if (!readfile(die, file, is_stdin, filename, blocksize, image_data, image, image_size, image_bpp, IL_BGRA, IL_UNSIGNED_BYTE, apply_transparency, apply_color)) return false;
+bool readfile_surface(char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, cairo_surface_t **surface, cairo_t **cr, ILuint *image, struct vector2 *image_size, ILint *image_bpp, bool apply_transparency, struct color apply_color) {
+	if (!readfile(file, is_stdin, filename, blocksize, image_data, image, image_size, image_bpp, IL_BGRA, IL_UNSIGNED_BYTE, apply_transparency, apply_color)) return false;
 
 	cairo_surface_t *image_surface_ = cairo_image_surface_create_for_data(
 			*image_data, CAIRO_FORMAT_ARGB32, image_size->x, image_size->y,
 			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, image_size->x));
-	if (!image_surface_) { die("Failed to create cairo surface", NULL, 1); return false; }
+	if (!image_surface_) { die1("Failed to create cairo surface", 1); return false; }
 
 	cairo_t *cr_ = cairo_create(image_surface_);
-	if (!cr_) { die("Failed to create cairo context", NULL, 1); return false; }
+	if (!cr_) { die1("Failed to create cairo context", 1); return false; }
 
 	*surface = image_surface_;
 	*cr = cr_;
@@ -34,7 +37,7 @@ bool strstarts(const char *str, const char *substr) {
 	return strncmp(str, substr, substrlen) == 0;
 }
 
-bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, ILuint *image, struct vector2 *image_size, ILint *image_bpp, ILenum format, ILenum type, bool apply_transparency, struct color apply_color) {
+bool readfile(char *file, bool *is_stdin, char **filename, size_t blocksize, ILubyte **image_data, ILuint *image, struct vector2 *image_size, ILint *image_bpp, ILenum format, ILenum type, bool apply_transparency, struct color apply_color) {
 	// gets a FILE* from the file name
 	FILE *fp;
 	bool f = false;
@@ -46,7 +49,10 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 		*is_stdin = false;
 		f = true;
 		fp = fopen(file, "rb"); // rb = read + binary
-		if (!fp) { die(file, strerror(errno), 1); return false; }
+		if (!fp) {
+			die2(file, strerror(errno), 1);
+			return false;
+		}
 		char *slash = strrchr(file, '/'); // gets the basename of file path
 		*filename = slash ? slash + 1 : file;
 	}
@@ -57,7 +63,10 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	size_t read = 0;
 	while (!feof(fp) && !ferror(fp)) {
 		data = realloc(data, size + blocksize);
-		if (!data) { die("Failed realloc", NULL, 1); return false; }
+		if (!data) {
+			die1("Failed realloc", 1);
+			return false;
+		}
 		read = fread(data + size, 1, blocksize, fp);
 		if (read <= 0) break;
 		size += read;
@@ -67,7 +76,7 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	if (f) fclose(fp); // close the file
 	if (ferr) {
 		free(data);
-		die(file, "Failed to read file", 1);
+		die2(file, "Failed to read file", 1);
 		return false;
 	}
 
@@ -75,22 +84,34 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	magic_t magic = magic_open(MAGIC_MIME_TYPE);
 	if (magic_load(magic, NULL) != 0) {
 		free(data);
-		die("Failed to load magic", NULL, 1); return false;
+		die1("Failed to load magic", 1);
+		return false;
 	}
 
+	// get mime type
 	const char *file_type = magic_buffer(magic, data, size);
 	if (!file_type) {
 		magic_close(magic);
 		free(data);
-		die(file, "Failed to determine file type", 1);
+		die2(file, "Failed to determine file type", 1);
+		return false;
 	}
 
 	if (strstarts(file_type, "image/")) {
 		// file is image, we don't need to do anything
-	} else {
-		magic_close(magic);
+	} else if (strstarts(file_type, "audio/")) {
+		void *new_data;
+		if (!get_cover_image(data, size, &new_data, &size)) {
+			magic_close(magic);
+			free(data);
+			die2(file, "Failed to read cover image", 1);
+			return false;
+		}
 		free(data);
-		die(file, "Not an image file", 1);
+		data = new_data;
+	} else {
+		free(data);
+		die3(file, "Not an image file", file_type, 1);
 		return false;
 	}
 	magic_close(magic);
@@ -100,12 +121,16 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	ilGenImages(1, &image_);
 	if (!image_) {
 		free(data);
-		die(file, "Failed to create image", 1); return false;
+		die2(file, "Failed to create image", 1);
+		return false;
 	}
 	ilBindImage(image_);
 	bool ret = ilLoadL(IL_TYPE_UNKNOWN, data, size);
 	free(data);
- 	if (!ret) { die(file, "Failed to read image, image is not recognized by DevIL", 1); return false; }
+ 	if (!ret) {
+		die2(file, "Failed to read image, image is not recognized by DevIL", 1);
+		return false;
+	}
 
 	struct vector2 image_size_ = { ilGetInteger(IL_IMAGE_WIDTH), ilGetInteger(IL_IMAGE_HEIGHT) };
 	*image_size = image_size_;
@@ -113,7 +138,10 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE);
 
 	ILubyte *image_data_ = ilGetData();
-	if (!image_data_) { die(file, "Failed to get image data", 1); return false; }
+	if (!image_data_) {
+		die2(file, "Failed to get image data", 1);
+		return false;
+	}
 
 	ILint image_bpp_ = ilGetInteger(IL_IMAGE_BYTES_PER_PIXEL);
 	*image_bpp = image_bpp_;
@@ -134,7 +162,10 @@ bool readfile(void (*die)(const char*, const char*, int), char *file, bool *is_s
 	ilConvertImage(format, type);
 
 	image_data_ = ilGetData();
-	if (!image_data_) { die(file, "Failed to get image data", 1); return false; }
+	if (!image_data_) {
+		die2(file, "Failed to get image data", 1);
+		return false;
+	}
 
 	*image_data = image_data_;
 	return true;

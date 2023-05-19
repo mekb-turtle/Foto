@@ -18,6 +18,7 @@
 #include <cairo/cairo-xlib.h>
 #include <IL/il.h>
 
+#include "./main.h"
 #include "./util.h"
 #include "./img.h"
 
@@ -59,13 +60,16 @@ bool running = false;
 bool received_resize = false;
 bool received_reload = false;
 
-void die(const char *msg, const char *msg2, int exitcode) {
+void die3(const char *msg, const char *msg2, const char *msg3, int exitcode) {
 	running = false;
 	if (!exited) {
 		// print message
-		if (msg2 && !msg) { msg = msg2; msg2 = NULL; }
-		if (msg2) eprintf("%s: %s\n", msg, msg2);
-		else if (msg) eprintf("%s\n", msg);
+		if (msg2 && !msg)  { msg = msg2;  msg2 = NULL; }
+		if (msg3 && !msg)  { msg = msg3;  msg3 = NULL; }
+		if (msg3 && !msg2) { msg2 = msg3; msg3 = NULL; }
+		if      (msg3) eprintf("%s: %s: %s\n", msg, msg2, msg3);
+		else if (msg2) eprintf("%s: %s\n", msg, msg2);
+		else if (msg)  eprintf("%s\n", msg);
 
 		// tidy everything up
 		exited = true;
@@ -94,7 +98,7 @@ void die(const char *msg, const char *msg2, int exitcode) {
 
 void exit_handler() {
 	if (!running) {
-		die(NULL, NULL, 2);
+		die(2);
 		return;
 	}
 	running = false;
@@ -141,7 +145,7 @@ bool argch(char *flag, char *possible_flags) {
 	// if you know a better way to do this please make an issue
 	int len = strlen(possible_flags);
 	char *_possible_flags = malloc(len); // create a backup of it so we can edit it
-	if (!_possible_flags) die("Failed malloc", strerror(errno), errno);
+	if (!_possible_flags) die2("Failed malloc", strerror(errno), errno);
 	memcpy(_possible_flags, possible_flags, len);
 	for (; *flag; ++flag) { // loop over current flags
 		char *f = _possible_flags;
@@ -165,26 +169,26 @@ bool argch(char *flag, char *possible_flags) {
 
 void create_pixmap_surface(struct vector2 size, unsigned int depth, Visual *visual, bool transparent, GC gc) {
 	pixmap = XCreatePixmap(dpy, win, size.x, size.y, depth);
-	if (!pixmap) die("Failed to create pixmap", NULL, 1);
+	if (!pixmap) die1("Failed to create pixmap", 1);
 	pixmap_init = true;
 
 	if (transparent) {
 		alpha_pixmap = XCreatePixmap(dpy, win, size.x, size.y, 1);
-		if (!alpha_pixmap) die("Failed to create alpha pixmap", NULL, 1);
+		if (!alpha_pixmap) die1("Failed to create alpha pixmap", 1);
 		alpha_pixmap_init = true;
 
 		alpha_pixmap_image = XGetImage(dpy, alpha_pixmap, 0, 0, size.x, size.y, AllPlanes, ZPixmap);
-		if (!alpha_pixmap_image) die("Failed to get image of alpha pixmap", NULL, 1);
+		if (!alpha_pixmap_image) die1("Failed to get image of alpha pixmap", 1);
 
 		alpha_gc = XCreateGC(dpy, alpha_pixmap, 0, &alpha_gc_values);
 		alpha_gc_init = true;
 	}
 
 	draw_surface = cairo_xlib_surface_create(dpy, pixmap, visual, size.x, size.y);
-	if (!draw_surface) die("Failed to create cairo surface", NULL, 1);
+	if (!draw_surface) die1("Failed to create cairo surface", 1);
 
 	draw_cr = cairo_create(draw_surface);
-	if (!draw_cr) die("Failed to create cairo context", NULL, 1);
+	if (!draw_cr) die1("Failed to create cairo context", 1);
 }
 
 int main(int argc, char *argv[]) {
@@ -325,21 +329,21 @@ int main(int argc, char *argv[]) {
 
 	char *filename = NULL;
 	bool is_stdin;
-	image_init = readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg);
-	if (!image_init) die("Failed to read data", NULL, 1);
+	image_init = readfile_surface(file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg);
+	if (!image_init) die1("Failed to read data", 1);
 
 	struct stat st;
 	time_t prev_mtime = 0;
 	if (flag_hotreload) {
-		if (is_stdin) die("Cannot use hotreload with stdin", NULL, 1);
-		if (stat(file, &st) != 0) die(file, strerror(errno), 1);
+		if (is_stdin) die1("Cannot use hotreload with stdin", 1);
+		if (stat(file, &st) != 0) die2(file, strerror(errno), 1);
 		prev_mtime = st.st_mtime;
 	}
 
 	if (!title) {
 		size_t size = strlen(EXEC) + strlen(filename) + 16;
 		title = malloc(size);
-		if (!title) die("Failed malloc", strerror(errno), errno);
+		if (!title) die2("Failed malloc", strerror(errno), errno);
 		snprintf(title, size, "%s: %s", EXEC, filename);
 	}
 	if (!class) class = EXEC;
@@ -350,10 +354,10 @@ int main(int argc, char *argv[]) {
 		window_size.y = image_size.y;
 	}
 
-	if (window_size.x < 10 || window_size.y < 10) die("Window size too small", NULL, 1);
+	if (window_size.x < 10 || window_size.y < 10) die1("Window size too small", 1);
 
 	dpy = XOpenDisplay(NULL);
-	if (!dpy) die("Cannot open display", NULL, 1);
+	if (!dpy) die1("Cannot open display", 1);
 
 	int screen = DefaultScreen(dpy);
 	Window root = DefaultRootWindow(dpy);
@@ -363,7 +367,7 @@ int main(int argc, char *argv[]) {
 
 	win = XCreateSimpleWindow(dpy, root, 0, 0, window_size.x, window_size.y, 0,
 			BlackPixel(dpy, screen), WhitePixel(dpy, screen));
-	if (!win) die("Cannot create window", NULL, 1);
+	if (!win) die1("Cannot create window", 1);
 
 	XSetWindowAttributes attrs;
 	unsigned long attrs_flags = CWBackPixel;
@@ -385,7 +389,7 @@ int main(int argc, char *argv[]) {
 	win_init = true;
 
 	class_hint = XAllocClassHint();
-	if (!class_hint) die("Failed to allocate class hint", NULL, 1);
+	if (!class_hint) die1("Failed to allocate class hint", 1);
 	XGetClassHint(dpy, win, class_hint);
 	class_hint->res_name = class;
 	class_hint->res_class = class;
@@ -394,7 +398,7 @@ int main(int argc, char *argv[]) {
 	if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 
 	size_hint = XAllocSizeHints();
-	if (!size_hint) die("Failed to allocate size hint", NULL, 1);
+	if (!size_hint) die1("Failed to allocate size hint", 1);
 	XSetWMNormalHints(dpy, win, size_hint);
 
 	create_pixmap_surface(window_size, depth, visual, flag_transparent, gc);
@@ -431,7 +435,7 @@ int main(int argc, char *argv[]) {
 			file_checked = get_time();
 			if (file_checked > file_last_checked + 500) {
 				file_last_checked = file_checked;
-				if (stat(file, &st) != 0) die(file, strerror(errno), 1);
+				if (stat(file, &st) != 0) die2(file, strerror(errno), 1);
 				if (st.st_mtime != prev_mtime) {
 					prev_mtime = st.st_mtime;
 					hotreload = true;
@@ -448,7 +452,7 @@ int main(int argc, char *argv[]) {
 			image_cr = NULL;
 			image_surface = NULL;
 			image_init = false;
-			if (!readfilesurface(die, file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg)) die("Failed to read data", NULL, 1);
+			if (!readfile_surface(file, &is_stdin, &filename, BLOCK, &image_data, &image_surface, &image_cr, &image, &image_size, &image_bpp, true, bg)) die1("Failed to read data", 1);
 			letterboxing(window_size, image_size, &transform);
 			image_init = true;
 			first_expose = true;
@@ -533,6 +537,6 @@ int main(int argc, char *argv[]) {
 			}
 		}
     }
-	die(NULL, NULL, 0);
+	die(0);
 	return 0;
 }
