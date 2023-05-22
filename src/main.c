@@ -473,7 +473,6 @@ int main(int argc, char *argv[]) {
 	Window root = DefaultRootWindow(dpy);
 	visual = DefaultVisual(dpy, screen);
 	unsigned int depth = DefaultDepth(dpy, screen);
-	GC window_gc = DefaultGC(dpy, screen);
 
 	// main window
 	win = XCreateSimpleWindow(dpy, root, 0, 0, window_size.x, window_size.y, 0,
