@@ -40,7 +40,7 @@ bool readimage(char *file, bool *is_stdin, char **filename, size_t blocksize, IL
 	while (!feof(fp) && !ferror(fp)) {
 		// read the file in blocks of blocksize bytes
 		data = realloc(data, size + blocksize);
-		if (!data) die(1, "Failed realloc", NULL);
+		if (!data) die(errno, "realloc", strerror(errno), NULL);
 		read = fread(data + size, 1, blocksize, fp);
 		if (read <= 0) break;
 		size += read;

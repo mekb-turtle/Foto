@@ -28,4 +28,8 @@ options=(
     '--sigusr2[Allows the SIGUSR2 signal to reload the image on demand]'
 )
 
+# TODO: make title and class require 1 string argument
+# TODO: make pos and size require 2 number arguments
+# TODO: make bg require 3 number 0-255 arguments
+
 _arguments "${options[@]}"

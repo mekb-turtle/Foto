@@ -86,7 +86,7 @@ void die(int exitcode, ...) {
 	if (!exited) {
 		exited = true;
 
-		// print message
+		// print error message
 		va_list args;
 		bool first = true;
 		char *arg;
@@ -127,9 +127,7 @@ void die(int exitcode, ...) {
 		if (win_init) { XDestroyWindow(dpy, win); win_init = false; }
 		if (dpy) { XCloseDisplay(dpy); dpy = NULL; }
 
-		printf("line: %i\n", __LINE__);
 		if (il_init) { ilShutDown(); il_init = false; }
-		printf("line: %i\n", __LINE__);
 	}
 	exit(exitcode);
 }
