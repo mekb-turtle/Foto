@@ -28,7 +28,7 @@ makepkg -si
 ### Debian-based
 A .deb package is planned for an easier installation
 ```bash
-sudo apt install build-essential libcairo2-dev libdevil-dev libx11-dev libxext-dev libbsd-dev pandoc
+sudo apt install build-essential libcairo2-dev libdevil-dev libx11-dev libxext-dev pandoc
 git clone https://github.com/mekb-turtle/foto.git
 cd foto
 git checkout "$(git describe --tags --abbrev=0)" # checkout to latest tag, omit for latest commit
@@ -37,7 +37,6 @@ sudo make install RELEASE=1
 
 ### Other distros
 Find the following dependencies in your package manager or elsewhere:
-- `libbsd`
 - `cairo`
 - `devil`
 - `libx11`

@@ -1,11 +1,11 @@
 EXEC = foto
-VERSION = v1.3.1
+VERSION = v1.3.2
 
 CC = cc
 CFLAGS = -Wall
 CPPFLAGS =
 LDFLAGS =
-LDLIBS = -lbsd -lcairo -lIL -lX11 -lXext -lmagic -lm
+LDLIBS = -lcairo -lIL -lX11 -lXext -lmagic -lm
 
 TOP_BUILD_DIR := build
 BUILD_DIR := $(TOP_BUILD_DIR)

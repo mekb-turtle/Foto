@@ -11,7 +11,6 @@
 #include <signal.h>
 #include <stdarg.h>
 
-#include <bsd/inttypes.h>
 #include <cairo/cairo.h>
 #include <cairo/cairo-xlib.h>
 #include <X11/Xlib.h>
@@ -169,13 +168,14 @@ void sigusr2_handler() {
 bool to_int(char *input, int *output, bool allow_zero, bool byte) {
 	if (!*input) return false;
 	int r = 0;
-	for (char *input_ = input; *input_; ++input_) {
+	for (char *input_ = input; *input_; ++input_, ++r) {
 		if (!isdigit(*input_)) return false;
-		if (r++ > (byte ? 3 : 10)) return false;
+		if (r >= (byte ? 3 : 5)) return false;
 	}
-	r = 0;
-	*output = strtoi(input, NULL, 10, allow_zero ? 0 : 1, byte ? 255 : INT_MAX, &r);
-	if (r < 0) return false;
+	int output_ = atoi(input);
+	if (output_ < (allow_zero ? 0 : 1)) return false;
+	if (output_ > (byte ? UCHAR_MAX : SHRT_MAX)) return false;
+	*output = output_;
 	return true;
 }
 
@@ -375,31 +375,31 @@ int main(int argc, char *argv[]) {
 		} else if (flag_set_size == 1) {
 			++flag_set_size;
 			char *str_w = argv[i]; // set width of size
-			if (!to_int(str_w, &window_size.x, true, false)) invalid;
+			if (!to_int(str_w, &window_size.x, false, false)) invalid;
 		} else if (flag_set_size == 2) {
 			set_size = true;
 			flag_set_size = 0;
 			char *str_h = argv[i]; // set height of size
-			if (!to_int(str_h, &window_size.y, true, false)) invalid;
+			if (!to_int(str_h, &window_size.y, false, false)) invalid;
 
 		} else if (flag_set_bg == 1) {
 			++flag_set_bg;
 			char *str_r = argv[i]; // set r of bg
 			int bg_;
-			if (!to_int(str_r, &bg_, true, false)) invalid;
+			if (!to_int(str_r, &bg_, true, true)) invalid;
 			bg.r = bg_;
 		} else if (flag_set_bg == 2) {
 			++flag_set_bg;
 			char *str_g = argv[i]; // set g of bg
 			int bg_;
-			if (!to_int(str_g, &bg_, true, false)) invalid;
+			if (!to_int(str_g, &bg_, true, true)) invalid;
 			bg.g = bg_;
 		} else if (flag_set_bg == 3) {
 			set_bg = true;
 			flag_set_bg = 0;
 			char *str_b = argv[i]; // set b of bg
 			int bg_;
-			if (!to_int(str_b, &bg_, true, false)) invalid;
+			if (!to_int(str_b, &bg_, true, true)) invalid;
 			bg.b = bg_;
 		} else if (!file) {
 			file = argv[i];
