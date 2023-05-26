@@ -8,8 +8,14 @@ assignees: ''
 ---
 
 ### Bug description
+Insert detailed description of bug
 
-### Progress Tracker
-- [ ] Replace this
-- [ ] Replace this
-- [ ] Replace this
+### Steps to reproduce
+1. Insert steps here
+2. replace this
+3. replace this
+
+### Progress Tracker <!-- remove if not needed ->
+- [ ] replace this
+- [ ] replace this
+- [ ] replace this

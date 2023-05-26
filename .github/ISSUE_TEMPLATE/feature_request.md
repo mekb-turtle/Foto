@@ -2,14 +2,15 @@
 name: Feature request
 about: Suggest an idea for this project
 title: ''
-labels: ''
+labels: enhancement
 assignees: ''
 
 ---
 
 ### Feature description
+Insert description of the feature
 
-### Progress Tracker
-- [ ] Replace this
-- [ ] Replace this
-- [ ] Replace this
+### Progress Tracker <!-- remove if not needed ->
+- [ ] replace this
+- [ ] replace this
+- [ ] replace this
