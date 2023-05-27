@@ -23,7 +23,7 @@ COMPLETIONS_DIR = completions
 
 ifeq ($(origin INSTALL_DIR),undefined)
 	ifeq ($(shell id -u),0)
-		INSTALL_DIR := '/usr/local'
+		INSTALL_DIR := '/usr'
 	else
 		INSTALL_DIR := '$(HOME)/.local'
 	endif
