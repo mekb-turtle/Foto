@@ -6,16 +6,16 @@ options=(
     '--help[Shows help text]'
     '-V[Shows the current version]'
     '--version[Shows the current version]'
-    '-t[Sets the window title]'
-    '--title[Sets the window title]'
-    '-c[Sets the window class]'
-    '--class[Sets the window class]'
-    '-p[Sets the window position]'
-    '--pos[Sets the window position]'
-    '-s[Sets the window size]'
-    '--size[Sets the window size]'
-    '-b[Sets the background color]'
-    '--bg[Sets the background color]'
+	'-t[Sets the window title]:title:()'
+	'--title[Sets the window title]:title:()'
+	'-c[Sets the window class]:class:()'
+	'--class[Sets the window class]:class:()'
+	'-p[Sets the window position, syntax: x,y]:position:()'
+	'--pos[Sets the window position, syntax: x,y]:position:()'
+	'-s[Sets the window size, syntax: w,h]:size:()'
+	'--size[Sets the window size, syntax: w,h]:size:()'
+	'-b[Sets the background color, syntax: r,g,b]:color:()'
+	'--bg[Sets the background color, syntax: r,g,b]:color:()'
     '-r[Reloads image when it is modified]'
     '--hotreload[Reloads image when it is modified]'
     '-B[Removes the window border]'
@@ -27,9 +27,5 @@ options=(
     '-2[Allows the SIGUSR2 signal to reload the image on demand]'
     '--sigusr2[Allows the SIGUSR2 signal to reload the image on demand]'
 )
-
-# TODO: make title and class require 1 string argument
-# TODO: make pos and size require 2 number arguments
-# TODO: make bg require 3 number 0-255 arguments
 
 _arguments "${options[@]}"

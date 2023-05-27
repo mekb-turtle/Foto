@@ -34,14 +34,14 @@ It uses DevIL to read the image, then it uses Cairo and Xlib to display it to th
 -c, \--class *class*
 : Sets the window class name
 
--p, \--pos *x* *y*
+-p, \--pos *x*,*y*
 : Sets the window position
 
--s, \--size *w* *h*
+-s, \--size *w*,*h*
 : Sets the window size, defaults to the size of the image
 
--b, \--bg *r* *g* *b*
-: Sets the background colour
+-b, \--bg *r*,*g*,*b*
+: Sets the background colour (0-255)
 
 -r, \--hotreload
 : Reloads image when it is modified, will not work with stdin
