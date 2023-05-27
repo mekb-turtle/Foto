@@ -1,11 +1,4 @@
-EXEC = foto
-VERSION = v1.4.0
-
-CC = cc
-CFLAGS = -Wall
-CPPFLAGS =
-LDFLAGS =
-LDLIBS = -lcairo -lIL -lX11 -lXext -lmagic
+include config.mk
 
 TOP_BUILD_DIR := build
 BUILD_DIR := $(TOP_BUILD_DIR)
