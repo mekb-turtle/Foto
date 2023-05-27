@@ -2,12 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <errno.h>
-#include <limits.h>
-#include <ctype.h>
 #include <sys/stat.h>
-#include <math.h>
 #include <signal.h>
 #include <stdarg.h>
 
@@ -157,27 +153,12 @@ void sigusr2_handler() {
 	-V, --version            : Shows the current version\n\
 	-t, --title title        : Sets the window title\n\
 	-c, --class class        : Sets the window class name\n\
-	-p, --pos x y            : Sets the window position\n\
-	-s, --size w h           : Sets the window size, defaults to the size of the image\n\
-	-b, --bg r g b           : Sets the background colour\n\
+	-p, --pos x,y            : Sets the window position\n\
+	-s, --size w,h           : Sets the window size, defaults to the size of the image\n\
+	-b, --bg r,g,b           : Sets the background colour (0-255)\n\
 	-r, --hotreload          : Reloads image when it is modified, will not work with stdin\n\
 	-B, --borderless         : Removes the border from the window\n\
 	-u, --transparent        : Makes the transparency of the window match the image\n"
-
-// read number from a string, all numbers have to be digits
-bool to_int(char *input, int *output, bool allow_zero, bool byte) {
-	if (!*input) return false;
-	int r = 0;
-	for (char *input_ = input; *input_; ++input_, ++r) {
-		if (!isdigit(*input_)) return false;
-		if (r >= (byte ? 3 : 5)) return false;
-	}
-	int output_ = atoi(input);
-	if (output_ < (allow_zero ? 0 : 1)) return false;
-	if (output_ > (byte ? UCHAR_MAX : SHRT_MAX)) return false;
-	*output = output_;
-	return true;
-}
 
 // checks if all flags in flag are in possible_flags exactly once
 // returns false if an unknown flag appears or a flag appears more than once
@@ -357,50 +338,25 @@ int main(int argc, char *argv[]) {
 		} else if (flag_set_title) {
 			flag_set_title = 0;
 			title = argv[i]; // set title option
-
 		} else if (flag_set_class) {
 			flag_set_class = 0;
 			class = argv[i]; // set class option
-
-		} else if (flag_set_pos == 1) {
-			++flag_set_pos;
-			char *str_x = argv[i]; // set x of pos
-			if (!to_int(str_x, &window_pos.x, true, false)) invalid;
-		} else if (flag_set_pos == 2) {
+		} else if (flag_set_pos) {
 			set_pos = true;
 			flag_set_pos = 0;
-			char *str_y = argv[i]; // set y of pos
-			if (!to_int(str_y, &window_pos.y, true, false)) invalid;
-
-		} else if (flag_set_size == 1) {
-			++flag_set_size;
-			char *str_w = argv[i]; // set width of size
-			if (!to_int(str_w, &window_size.x, false, false)) invalid;
-		} else if (flag_set_size == 2) {
+			if (!multi_to_int(argv[i], true, false, &window_pos.x, &window_pos.y, NULL)) invalid;
+		} else if (flag_set_size) {
 			set_size = true;
 			flag_set_size = 0;
-			char *str_h = argv[i]; // set height of size
-			if (!to_int(str_h, &window_size.y, false, false)) invalid;
-
-		} else if (flag_set_bg == 1) {
-			++flag_set_bg;
-			char *str_r = argv[i]; // set r of bg
-			int bg_;
-			if (!to_int(str_r, &bg_, true, true)) invalid;
-			bg.r = bg_;
-		} else if (flag_set_bg == 2) {
-			++flag_set_bg;
-			char *str_g = argv[i]; // set g of bg
-			int bg_;
-			if (!to_int(str_g, &bg_, true, true)) invalid;
-			bg.g = bg_;
-		} else if (flag_set_bg == 3) {
+			if (!multi_to_int(argv[i], false, false, &window_size.x, &window_size.y, NULL)) invalid;
+		} else if (flag_set_bg) {
 			set_bg = true;
 			flag_set_bg = 0;
-			char *str_b = argv[i]; // set b of bg
-			int bg_;
-			if (!to_int(str_b, &bg_, true, true)) invalid;
-			bg.b = bg_;
+			int r, g, b;
+			if (!multi_to_int(argv[i], true, true, &r, &g, &b, NULL)) invalid;
+			bg.r = r;
+			bg.g = g;
+			bg.b = b;
 		} else if (!file) {
 			file = argv[i];
 		} else {
@@ -636,8 +592,8 @@ int main(int argc, char *argv[]) {
 									if (x <  transform.translate.x                    || y <  transform.translate.y ||
 										x >= transform.translate.x + transform.size.x || y >= transform.translate.y + transform.size.y) is_visible = false;
 									else {
-										image_pos.x = round((x - transform.translate.x) * transform.scale_inv);
-										image_pos.y = round((y - transform.translate.y) * transform.scale_inv);
+										image_pos.x = (int)((x - transform.translate.x) * transform.scale_inv + 0.5);
+										image_pos.y = (int)((y - transform.translate.y) * transform.scale_inv + 0.5);
 										is_visible = image_data[(image_pos.y * image_size.x + image_pos.x) * image_bpp + 3] & 0x80;
 									}
 									XPutPixel(alpha_ximage, x, y, is_visible ? 1 : 0);

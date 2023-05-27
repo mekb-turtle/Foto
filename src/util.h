@@ -31,3 +31,5 @@ bool dvector2cmp(struct dvector2 a, struct dvector2 b);
 unsigned long long get_time();
 double lerp(double a, double b, double t);
 unsigned char lerpc(unsigned char a, unsigned char b, unsigned char t);
+bool to_int(char *input, char *end, bool allow_zero, bool byte, int *output);
+bool multi_to_int(char *input, bool allow_zero, bool byte, int *output, ...);
