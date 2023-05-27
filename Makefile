@@ -112,9 +112,9 @@ install: build man
 	@printf "\e[93m==> \e[0;1mInstalling man pages to %s…\e[0m\n" '$(MAN_INSTALL_DIR)'
 	$(foreach page,$(MAN_BUILT_PAGES),@install -Dpm644 -- '$(page)' '$(subst $(MAN_BUILD_DIR),$(MAN_INSTALL_DIR),$(page))')
 	@printf "\e[93m==> \e[0;1mInstalling Completions…\e[0m\n"
-	@install -Dpm644 -- '$(COMPLETIONS_DIR)/foto.bash' '$(BASH_COMPLETIONS_INSTALL_DIR)/foto'
-	@install -Dpm644 -- '$(COMPLETIONS_DIR)/foto.zsh' '$(ZSH_COMPLETIONS_INSTALL_DIR)/_foto'
-	@install -Dpm644 -- '$(COMPLETIONS_DIR)/foto.fish' '$(FISH_COMPLETIONS_INSTALL_DIR)/foto.fish'
+	@install -Dpm644 -- '$(COMPLETIONS_DIR)/$(EXEC).bash' '$(BASH_COMPLETIONS_INSTALL_DIR)/$(EXEC)'
+	@install -Dpm644 -- '$(COMPLETIONS_DIR)/$(EXEC).zsh' '$(ZSH_COMPLETIONS_INSTALL_DIR)/_$(EXEC)'
+	@install -Dpm644 -- '$(COMPLETIONS_DIR)/$(EXEC).fish' '$(FISH_COMPLETIONS_INSTALL_DIR)/$(EXEC).fish'
 
 uninstall:
 	@if [ "$(RELEASE)" != "1" ]; then printf "\e[1;93m> Uninstalling requires you to be in release mode!\e[0m\n"; exit 1; fi
@@ -124,6 +124,6 @@ uninstall:
 	@printf "\e[93m==> \e[0;1mUninstalling man pages from %s…\e[0m\n" '$(MAN_INSTALL_DIR)'
 	$(foreach page,$(MAN_BUILT_PAGES),@rm -f -- '$(subst $(MAN_BUILD_DIR),$(MAN_INSTALL_DIR),$(page))')
 	@printf "\e[93m==> \e[0;1mUninstalling Completions…\e[0m\n"
-	@rm -f '$(BASH_COMPLETIONS_INSTALL_DIR)/foto'
-	@rm -f '$(ZSH_COMPLETIONS_INSTALL_DIR)/_foto'
-	@rm -f '$(FISH_COMPLETIONS_INSTALL_DIR)/foto.fish'
+	@rm -f '$(BASH_COMPLETIONS_INSTALL_DIR)/$(EXEC)'
+	@rm -f '$(ZSH_COMPLETIONS_INSTALL_DIR)/_$(EXEC)'
+	@rm -f '$(FISH_COMPLETIONS_INSTALL_DIR)/$(EXEC).fish'
