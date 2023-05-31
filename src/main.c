@@ -257,6 +257,57 @@ void create_image_surface(struct vector2 image_size) {
 	if (!image_surface) die(1, "Failed to create image surface", NULL);
 }
 
+// render/expose function
+void render(struct transform transform, struct transform *old_transform, struct vector2 image_size, struct vector2 window_size, struct color bg, bool flag_transparent) {
+	// if transformation is different
+	if (!transformcmp(*old_transform, transform)) {
+		// set transformation
+		*old_transform = transform;
+
+		// clear surface
+		cairo_set_source_rgb(window_cr, (double)bg.r/255, (double)bg.g/255, (double)bg.b/255);
+		cairo_paint(window_cr);
+
+		// transform
+		cairo_translate(window_cr, transform.translate.x, transform.translate.y);
+		cairo_scale(window_cr, transform.scale, transform.scale);
+
+		// draw image
+		cairo_set_source_surface(window_cr, image_surface, 0, 0);
+		cairo_paint(window_cr);
+
+		// undo transform
+		cairo_scale(window_cr, transform.scale_inv, transform.scale_inv);
+		cairo_translate(window_cr, -transform.translate.x, -transform.translate.y);
+
+		// flush
+		cairo_surface_flush(window_surface);
+
+		if (flag_transparent) {
+			bool is_visible;
+			struct vector2 image_pos;
+			for (double y = 0; y < window_size.y; ++y) {
+				for (double x = 0; x < window_size.x; ++x) {
+					if (x <  transform.translate.x                    || y <  transform.translate.y ||
+						x >= transform.translate.x + transform.size.x || y >= transform.translate.y + transform.size.y) is_visible = false;
+					else {
+						image_pos.x = (int)((x - transform.translate.x) * transform.scale_inv + 0.5);
+						image_pos.y = (int)((y - transform.translate.y) * transform.scale_inv + 0.5);
+						is_visible = image_data[(image_pos.y * image_size.x + image_pos.x) * image_bpp + 3] & 0x80;
+					}
+					XPutPixel(alpha_ximage, x, y, is_visible ? 1 : 0);
+				}
+			}
+			XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_ximage, 0, 0, 0, 0, window_size.x, window_size.y);
+		}
+	}
+
+	if (flag_transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
+	XCopyArea(dpy, window_pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
+	XSetWindowBackgroundPixmap(dpy, win, window_pixmap);
+	XFlush(dpy);
+}
+
 int main(int argc, char *argv[]) {
 	// macros for argument handling
 #define invalid return eprintf("Invalid usage, see --help\n"), 2
@@ -451,15 +502,6 @@ int main(int argc, char *argv[]) {
 	// we want to handle some events
 	XSelectInput(dpy, win, ExposureMask | StructureNotifyMask | SubstructureNotifyMask);
 
-	// show window
-	XMapWindow(dpy, win);
-
-	win_init = true;
-
-	// create image surface and window stuff
-	create_image_surface(image_size);
-	create_window_drawing(window_size, depth, flag_transparent);
-
 	// set window title
 	XStoreName(dpy, win, title);
 
@@ -476,13 +518,20 @@ int main(int argc, char *argv[]) {
 	if (!size_hint) die(1, "Failed to allocate size hint", NULL);
 	XSetWMNormalHints(dpy, win, size_hint);
 
+	// show window
+	XMapWindow(dpy, win);
+
+	win_init = true;
+
+	// create image surface and window stuff
+	create_image_surface(image_size);
+	create_window_drawing(window_size, depth, flag_transparent);
+
 	// move window to the position
 	if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 
 	// booleans
-	bool resize = true;
-	bool expose = true;
-	bool hotreload = false;
+	bool resize = true, expose = true, hotreload = false;
 	
 	// event we are handling
     XEvent event;
@@ -498,6 +547,7 @@ int main(int argc, char *argv[]) {
 	received_resize = received_reload = false;
 	running = true;
 	while (running && !exiting) {
+		expose = false;
 		if (received_resize) {
 			// resize window to the image size
 			received_resize = false;
@@ -515,8 +565,8 @@ int main(int argc, char *argv[]) {
 		}
 		if (!is_stdin && flag_hotreload && running && !hotreload) {
 			file_checked = get_time();
-			// 500ms after file was last checked
-			if (file_checked > file_last_checked + 500 || file_checked < file_last_checked) {
+			// delay after file was last checked
+			if (file_checked > file_last_checked + FILE_CHECK_TIME || file_checked < file_last_checked) {
 				file_last_checked = file_checked;
 				if (stat(file, &st) != 0) die(1, file, strerror(errno), NULL);
 				if (st.st_mtime != prev_mtime) {
@@ -534,13 +584,11 @@ int main(int argc, char *argv[]) {
 			image_init = readimage(file, &is_stdin, &filename, BLOCK, &image_data, &image, &image_size, &image_bpp, true, bg);
 			if (!image_init) die(1, "Failed to read data", NULL);
 			create_image_surface(image_size);
+			letterboxing(window_size, image_size, &transform);
 			expose = true;
 		}
-		while (running && (expose || XPending(dpy))) {
-			if (!expose)
-				XNextEvent(dpy, &event);
-			else
-				event.type = Expose;
+		while (running && XPending(dpy)) {
+			XNextEvent(dpy, &event);
 			switch (event.type) {
 				case ConfigureNotify:
 					// window resize
@@ -553,60 +601,12 @@ int main(int argc, char *argv[]) {
 					window_size.x = event.xconfigure.width;
 					window_size.y = event.xconfigure.height;
 					create_window_drawing(window_size, depth, flag_transparent);
+					letterboxing(window_size, image_size, &transform);
 					expose = true;
 					// redraw window
 				case Expose:
 					// draw window
-					if (expose) {
-						letterboxing(window_size, image_size, &transform);
-						expose = false;
-					}
-					// if transformation is different
-					if (!transformcmp(old_transform, transform)) {
-						old_transform = transform;
-
-						// clear surface
-						cairo_set_source_rgb(window_cr, (double)bg.r/255, (double)bg.g/255, (double)bg.b/255);
-						cairo_paint(window_cr);
-
-						// transform
-						cairo_translate(window_cr, transform.translate.x, transform.translate.y);
-						cairo_scale(window_cr, transform.scale, transform.scale);
-
-						// draw image
-						cairo_set_source_surface(window_cr, image_surface, 0, 0);
-						cairo_paint(window_cr);
-
-						// undo transform
-						cairo_scale(window_cr, transform.scale_inv, transform.scale_inv);
-						cairo_translate(window_cr, -transform.translate.x, -transform.translate.y);
-
-						// flush
-						cairo_surface_flush(window_surface);
-
-						if (flag_transparent) {
-							bool is_visible;
-							struct vector2 image_pos;
-							for (double y = 0; y < window_size.y; ++y) {
-								for (double x = 0; x < window_size.x; ++x) {
-									if (x <  transform.translate.x                    || y <  transform.translate.y ||
-										x >= transform.translate.x + transform.size.x || y >= transform.translate.y + transform.size.y) is_visible = false;
-									else {
-										image_pos.x = (int)((x - transform.translate.x) * transform.scale_inv + 0.5);
-										image_pos.y = (int)((y - transform.translate.y) * transform.scale_inv + 0.5);
-										is_visible = image_data[(image_pos.y * image_size.x + image_pos.x) * image_bpp + 3] & 0x80;
-									}
-									XPutPixel(alpha_ximage, x, y, is_visible ? 1 : 0);
-								}
-							}
-							XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_ximage, 0, 0, 0, 0, window_size.x, window_size.y);
-						}
-					}
-					if (flag_transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
-					XCopyArea(dpy, window_pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
-					XSetWindowBackgroundPixmap(dpy, win, window_pixmap);
-					XFlush(dpy);
-					break;
+					render(transform, &old_transform, image_size, window_size, bg, flag_transparent);
 				case ClientMessage:
 					// close window
 					if (event.xclient.message_type == wm_protocols &&
@@ -615,6 +615,9 @@ int main(int argc, char *argv[]) {
 					}
 					break;
 			}
+		}
+		if (expose) {
+			render(transform, &old_transform, image_size, window_size, bg, flag_transparent);
 		}
 		if (exiting) break;
     }
