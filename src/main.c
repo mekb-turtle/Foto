@@ -28,6 +28,7 @@
 // amount of bytes to read at a time, mainly for reading the image file
 #define BLOCK 1024
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#define FILE_CHECK_TIME 500
 
 // Xlib window stuff
 XClassHint *class_hint = NULL;
