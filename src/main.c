@@ -258,54 +258,70 @@ void create_image_surface(struct vector2 image_size) {
 	if (!image_surface) die(1, "Failed to create image surface", NULL);
 }
 
+struct render_args {
+	struct transform transform;
+	struct transform *old_transform;
+	struct vector2 image_size;
+	struct vector2 window_size;
+	struct color bg;
+	bool transparent;
+};
+
 // render/expose function
-void render(struct transform transform, struct transform *old_transform, struct vector2 image_size, struct vector2 window_size, struct color bg, bool flag_transparent) {
+void render(struct render_args args) {
 	// if transformation is different
-	if (!transformcmp(*old_transform, transform)) {
+	if (!transformcmp(*args.old_transform, args.transform)) {
 		// set transformation
-		*old_transform = transform;
+		*args.old_transform = args.transform;
 
 		// clear surface
-		cairo_set_source_rgb(window_cr, (double)bg.r/255, (double)bg.g/255, (double)bg.b/255);
+		cairo_set_source_rgb(window_cr, (double)args.bg.r/255, (double)args.bg.g/255, (double)args.bg.b/255);
 		cairo_paint(window_cr);
 
-		// transform
-		cairo_translate(window_cr, transform.translate.x, transform.translate.y);
-		cairo_scale(window_cr, transform.scale, transform.scale);
+		// transformation
+		cairo_translate(window_cr, args.transform.translate.x, args.transform.translate.y);
+		cairo_scale(window_cr, args.transform.scale, args.transform.scale);
 
 		// draw image
 		cairo_set_source_surface(window_cr, image_surface, 0, 0);
 		cairo_paint(window_cr);
 
-		// undo transform
-		cairo_scale(window_cr, transform.scale_inv, transform.scale_inv);
-		cairo_translate(window_cr, -transform.translate.x, -transform.translate.y);
+		// undo transformation
+		cairo_scale(window_cr, args.transform.scale_inv, args.transform.scale_inv);
+		cairo_translate(window_cr, -args.transform.translate.x, -args.transform.translate.y);
 
 		// flush
 		cairo_surface_flush(window_surface);
 
-		if (flag_transparent) {
+		if (args.transparent) {
 			bool is_visible;
 			struct vector2 image_pos;
-			for (double y = 0; y < window_size.y; ++y) {
-				for (double x = 0; x < window_size.x; ++x) {
-					if (x <  transform.translate.x                    || y <  transform.translate.y ||
-						x >= transform.translate.x + transform.size.x || y >= transform.translate.y + transform.size.y) is_visible = false;
+			for (double y = 0; y < args.window_size.y; ++y) {
+				for (double x = 0; x < args.window_size.x; ++x) {
+					if (x <  args.transform.translate.x                    || y <  args.transform.translate.y ||
+						x >= args.transform.translate.x + args.transform.size.x || y >= args.transform.translate.y + args.transform.size.y) is_visible = false;
 					else {
-						image_pos.x = (int)((x - transform.translate.x) * transform.scale_inv + 0.5);
-						image_pos.y = (int)((y - transform.translate.y) * transform.scale_inv + 0.5);
-						is_visible = image_data[(image_pos.y * image_size.x + image_pos.x) * image_bpp + 3] & 0x80;
+						image_pos.x = (int)((x - args.transform.translate.x) * args.transform.scale_inv + 0.5);
+						image_pos.y = (int)((y - args.transform.translate.y) * args.transform.scale_inv + 0.5);
+						is_visible = image_data[(image_pos.y * args.image_size.x + image_pos.x) * image_bpp + 3] & 0x80;
 					}
 					XPutPixel(alpha_ximage, x, y, is_visible ? 1 : 0);
 				}
 			}
-			XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_ximage, 0, 0, 0, 0, window_size.x, window_size.y);
+			XPutImage(dpy, alpha_pixmap, alpha_gc, alpha_ximage, 0, 0, 0, 0, args.window_size.x, args.window_size.y);
 		}
 	}
 
-	if (flag_transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
-	XCopyArea(dpy, window_pixmap, win, gc, 0, 0, window_size.x, window_size.y, 0, 0);
+	// set transparent shape
+	if (args.transparent) XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, alpha_pixmap, ShapeSet);
+
+	// set pixmap to window
+	XCopyArea(dpy, window_pixmap, win, gc, 0, 0, args.window_size.x, args.window_size.y, 0, 0);
+
+	// set window background
 	XSetWindowBackgroundPixmap(dpy, win, window_pixmap);
+
+	// flush display
 	XFlush(dpy);
 }
 
@@ -341,7 +357,8 @@ int main(int argc, char *argv[]) {
 		 flag_sigusr1 = false, flag_sigusr2 = false;
 	// options
 	char *file = NULL, *title = NULL, *class = NULL;
-	struct vector2 window_pos, window_size;
+	struct vector2 window_pos;
+	struct render_args render_args;
 	struct color bg = { 0, 0, 0 };
 	// if an option has been set
 	bool set_pos = false, set_size = false, set_bg = false;
@@ -400,7 +417,7 @@ int main(int argc, char *argv[]) {
 		} else if (flag_set_size) {
 			set_size = true;
 			flag_set_size = 0;
-			if (!multi_to_int(argv[i], false, false, &window_size.x, &window_size.y, NULL)) invalid;
+			if (!multi_to_int(argv[i], false, false, &render_args.window_size.x, &render_args.window_size.y, NULL)) invalid;
 		} else if (flag_set_bg) {
 			set_bg = true;
 			flag_set_bg = 0;
@@ -432,13 +449,11 @@ int main(int argc, char *argv[]) {
 	ilInit();
 	il_init = true;
 
-	struct vector2 image_size;
-
 	char *filename = NULL;
 	bool is_stdin;
 	image_init = false;
 	// read the image
-	image_init = readimage(file, &is_stdin, &filename, BLOCK, &image_data, &image, &image_size, &image_bpp, true, bg);
+	image_init = readimage(file, &is_stdin, &filename, BLOCK, &image_data, &image, &render_args.image_size, &image_bpp, true, bg);
 	if (!image_init) die(1, "Failed to read data", NULL);
 
 	struct stat st;
@@ -459,14 +474,14 @@ int main(int argc, char *argv[]) {
 
 	if (!set_size) {
 		// image size by default
-		window_size.x = image_size.x,
-		window_size.y = image_size.y;
+		render_args.window_size.x = render_args.image_size.x,
+		render_args.window_size.y = render_args.image_size.y;
 	}
 
 	// some WMs/compositors fail to resize the window if it's too small
-	if (window_size.x < 10 || window_size.y < 10) {
-		if (window_size.x < 10) window_size.x = 10;
-		if (window_size.y < 10) window_size.y = 10;
+	if (render_args.window_size.x < 10 || render_args.window_size.y < 10) {
+		if (render_args.window_size.x < 10) render_args.window_size.x = 10;
+		if (render_args.window_size.y < 10) render_args.window_size.y = 10;
 		eprintf("Window size too small\n");
 	}
 
@@ -481,7 +496,7 @@ int main(int argc, char *argv[]) {
 	unsigned int depth = DefaultDepth(dpy, screen);
 
 	// main window
-	win = XCreateSimpleWindow(dpy, root, 0, 0, window_size.x, window_size.y, 0,
+	win = XCreateSimpleWindow(dpy, root, 0, 0, render_args.window_size.x, render_args.window_size.y, 0,
 			BlackPixel(dpy, screen), WhitePixel(dpy, screen));
 	if (!win) die(1, "Cannot create window", NULL);
 
@@ -525,21 +540,22 @@ int main(int argc, char *argv[]) {
 	win_init = true;
 
 	// create image surface and window stuff
-	create_image_surface(image_size);
-	create_window_drawing(window_size, depth, flag_transparent);
+	create_image_surface(render_args.image_size);
+	create_window_drawing(render_args.window_size, depth, flag_transparent);
 
 	// move window to the position
 	if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 
 	// booleans
-	bool resize = true, expose = true, hotreload = false;
+	bool resize = true, hotreload = false;
+	struct transform old_transform;
+	render_args.old_transform = &old_transform;
 	
 	// event we are handling
     XEvent event;
 
 	// image transformation so it can fit to the window size
-	struct transform transform, old_transform;
-	letterboxing(window_size, image_size, &transform);
+	letterboxing(render_args.window_size, render_args.image_size, &render_args.transform);
 
 	// for hotreloading
 	unsigned long long file_last_checked = 0;
@@ -548,15 +564,15 @@ int main(int argc, char *argv[]) {
 	received_resize = received_reload = false;
 	running = true;
 	while (running && !exiting) {
-		expose = false;
 		if (received_resize) {
 			// resize window to the image size
 			received_resize = false;
-			window_size.x = image_size.x,
-			window_size.y = image_size.y;
-			XResizeWindow(dpy, win, window_size.x, window_size.y);
-			create_window_drawing(window_size, depth, flag_transparent);
-			expose = true;
+			render_args.window_size.x = render_args.image_size.x,
+			render_args.window_size.y = render_args.image_size.y;
+			XResizeWindow(dpy, win, render_args.window_size.x, render_args.window_size.y);
+			create_window_drawing(render_args.window_size, depth, flag_transparent);
+			letterboxing(render_args.window_size, render_args.image_size, &render_args.transform);
+			render(render_args);
 		}
 		if (received_reload) {
 			// force reload image
@@ -582,11 +598,11 @@ int main(int argc, char *argv[]) {
 			hotreload = false;
 			ilDeleteImages(1, &image);
 			image_init = false;
-			image_init = readimage(file, &is_stdin, &filename, BLOCK, &image_data, &image, &image_size, &image_bpp, true, bg);
+			image_init = readimage(file, &is_stdin, &filename, BLOCK, &image_data, &image, &render_args.image_size, &image_bpp, true, bg);
 			if (!image_init) die(1, "Failed to read data", NULL);
-			create_image_surface(image_size);
-			letterboxing(window_size, image_size, &transform);
-			expose = true;
+			create_image_surface(render_args.image_size);
+			letterboxing(render_args.window_size, render_args.image_size, &render_args.transform);
+			render(render_args);
 		}
 		while (running && XPending(dpy)) {
 			XNextEvent(dpy, &event);
@@ -598,16 +614,16 @@ int main(int argc, char *argv[]) {
 						if (set_pos) XMoveWindow(dpy, win, window_pos.x, window_pos.y);
 					}
 					// don't recreate if size hasn't changed
-					if (event.xconfigure.width == window_size.x && event.xconfigure.height == window_size.y) break;
-					window_size.x = event.xconfigure.width;
-					window_size.y = event.xconfigure.height;
-					create_window_drawing(window_size, depth, flag_transparent);
-					letterboxing(window_size, image_size, &transform);
-					expose = true;
-					// redraw window
+					if (event.xconfigure.width == render_args.window_size.x && event.xconfigure.height == render_args.window_size.y) break;
+					render_args.window_size.x = event.xconfigure.width;
+					render_args.window_size.y = event.xconfigure.height;
+					create_window_drawing(render_args.window_size, depth, flag_transparent);
+					letterboxing(render_args.window_size, render_args.image_size, &render_args.transform);
+					// fall to render window
 				case Expose:
-					// draw window
-					render(transform, &old_transform, image_size, window_size, bg, flag_transparent);
+					// render window
+					render(render_args);
+					break;
 				case ClientMessage:
 					// close window
 					if (event.xclient.message_type == wm_protocols &&
@@ -616,9 +632,6 @@ int main(int argc, char *argv[]) {
 					}
 					break;
 			}
-		}
-		if (expose) {
-			render(transform, &old_transform, image_size, window_size, bg, flag_transparent);
 		}
 		if (exiting) break;
     }
