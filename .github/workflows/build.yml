@@ -20,14 +20,10 @@ jobs:
     - name: Make foto
       run: make RELEASE=1 clean build man
 
-    - name: Upload binary
+    - name: Upload binary and manpage
       uses: actions/upload-artifact@v3
       with:
         name: foto
-        path: build/release/bin/foto
-
-    - name: Upload manpage
-      uses: actions/upload-artifact@v3
-      with:
-        name: foto.1
-        path: build/release/man/man1
+        path: |
+          build/release/bin/foto
+          build/release/man/man1
