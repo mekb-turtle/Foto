@@ -26,7 +26,7 @@ makepkg -si
 
 ### Debian-based
 ```bash
-sudo apt install build-essential libsdl2-dev pandoc
+sudo apt install build-essential libsdl2-dev libsdl2-image-dev pandoc
 git clone https://github.com/mekb-turtle/foto.git
 cd foto
 git checkout "$(git describe --tags --abbrev=0)" # checkout to latest tag, omit for latest commit
@@ -36,6 +36,7 @@ sudo make install RELEASE=1
 ### Other distros
 Find the following dependencies in your package manager or elsewhere:
 - `sdl2`
+- `sdl2_image`
 - `pandoc` (only needed when building man pages)
 - `file`/`libmagic` (usually comes with your system)
 
