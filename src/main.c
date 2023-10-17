@@ -12,12 +12,11 @@
 #include "./arg.h"
 #include "./image.h"
 
-// long options_getopt
+// long options with getopt
 static struct option options_getopt[] = {
 		{"help",       no_argument,       0, 'h'},
 		{"version",    no_argument,       0, 'V'},
 		{"title",      required_argument, 0, 't'},
-		{"class",      required_argument, 0, 'c'},
 		{"position",   required_argument, 0, 'p'},
 		{"size",       required_argument, 0, 's'},
 		{"background", required_argument, 0, 'b'},
@@ -41,13 +40,13 @@ void sigusr2_handler() {
 int main(int argc, char *argv[]) {
 	// arguments
 	struct foto_options {
-		char *title, *class;
+		char *title;
 		bool stretch, hot_reload, sigusr1, sigusr2, position_set, size_set, background_set;
 		SDL_Point position, size;
 		SDL_Color background;
 	};
 	struct foto_options options = {
-			.title = NULL, .class = NULL,
+			.title = NULL,
 			.stretch = false, .hot_reload = false, .sigusr1 = false, .sigusr2 = false, .position_set = false, .size_set = false, .background_set = false,
 	};
 
@@ -58,11 +57,11 @@ int main(int argc, char *argv[]) {
 	// argument handling
 	while ((opt = getopt_long(argc, argv, ":hVt:c:p:s:b:Sr12", options_getopt, NULL)) != -1) {
 		if (opt == 'h') {
+			// help text
 			printf("Usage: foto [options_getopt] file\n\
 -h --help: Shows help text\n\
 -V --version: Shows the current version\n\
 -t --title [title]: Sets the window title\n\
--c --class [class]: Sets the window class name\n\
 -p --position [x],[y]: Sets the window position\n\
 -s --size [w],[h]: Sets the window size, defaults to the size of the image\n\
 -b --background [r],[g],[b]: Sets the background colour (0-255)\n\
@@ -81,10 +80,6 @@ int main(int argc, char *argv[]) {
 				case 't':
 					if (options.title) invalid = true;
 					else options.title = optarg;
-					break;
-				case 'c':
-					if (options.class) invalid = true;
-					else options.class = optarg;
 					break;
 				case 'p':
 					if (options.position_set) break;

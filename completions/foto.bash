@@ -16,7 +16,7 @@ _foto_completion() {
 		return 1
 	}
 
-	opts1=('-t' '--title' '-c' '--class' '-p' '--position' '-s' '--size' '-b' '--background')
+	opts1=('-t' '--title' '-p' '--position' '-s' '--size' '-b' '--background')
 	opts0=('-h' '--help' '-V' '--version' '-S' '--stretch' '-r' '--hotreload' '-1' '--sigusr1' '-2' '--sigusr2')
 
 	if _foto_completion_contains_array "${COMP_WORDS[COMP_CWORD-1]}" "${opts1[@]}"; then

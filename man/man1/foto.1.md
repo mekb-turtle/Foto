@@ -26,9 +26,6 @@ A simple image viewer written in C. It simply shows an image to the user, nothin
 -t, \--title *title*
 : Sets the window title
 
--c, \--class *class*
-: Sets the window class name
-
 -p, \--position *x*,*y*
 : Sets the window position
 
