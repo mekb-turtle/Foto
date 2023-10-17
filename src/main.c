@@ -150,8 +150,7 @@ int main(int argc, char *argv[]) {
 		goto clean;
 	}
 
-	int img_flags = IMG_INIT_PNG | IMG_INIT_JPG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF;
-	if (!(IMG_Init(img_flags) & img_flags)) {
+	if (!(IMG_Init(-1))) {
 		// if it fails to load every image type
 		// not any image type, because we don't want to require libavif if the image is png for example
 		fprintf(stderr, "%s\n", IMG_GetError());
