@@ -143,6 +143,7 @@ int main(int argc, char *argv[]) {
 	SDL_Renderer *renderer = NULL;
 	SDL_Surface *surface = NULL;
 	SDL_Texture *texture = NULL;
+	char *title_default = NULL;
 
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 		warnx("Failed to initialize SDL: %s", SDL_GetError());
@@ -171,8 +172,6 @@ int main(int argc, char *argv[]) {
 	close_file(fp);
 
 	if (!surface) goto clean;
-
-	char *title_default = NULL;
 
 	if (!options.title) {
 		// if title isn't set, set it to the last component of filename
