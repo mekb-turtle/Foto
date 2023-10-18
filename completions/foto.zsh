@@ -15,3 +15,4 @@ options=(
 )
 
 _arguments -s -w "${options[@]}"
+_files
