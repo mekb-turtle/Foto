@@ -39,13 +39,12 @@ void sigusr2_handler() {
 
 int main(int argc, char *argv[]) {
 	// arguments
-	struct foto_options {
+	struct {
 		char *title;
 		bool stretch, hot_reload, sigusr1, sigusr2, position_set, size_set, background_set;
 		SDL_Point position, size;
 		SDL_Color background;
-	};
-	struct foto_options options = {
+	} options = {
 			.title = NULL,
 			.stretch = false, .hot_reload = false, .sigusr1 = false, .sigusr2 = false, .position_set = false, .size_set = false, .background_set = false,
 	};
@@ -58,7 +57,7 @@ int main(int argc, char *argv[]) {
 	while ((opt = getopt_long(argc, argv, ":hVt:c:p:s:b:Sr12", options_getopt, NULL)) != -1) {
 		if (opt == 'h') {
 			// help text
-			printf("Usage: foto [options_getopt] file\n\
+			printf("Usage: %s [options_getopt] file\n\
 -h --help: Shows help text\n\
 -V --version: Shows the current version\n\
 -t --title [title]: Sets the window title\n\
@@ -69,7 +68,7 @@ int main(int argc, char *argv[]) {
 -r --hotreload: Reloads image when it is modified, will not work with stdin\n\
 -1 --sigusr1: Allows the SIGUSR1 signal to resize_window the window to the size of the image\n\
 -2 --sigusr2: Allows the SIGUSR2 signal to reload_image the image on demand\n\
-");
+", EXEC);
 
 			return 0;
 		} else if (opt == 'V') {
@@ -173,11 +172,22 @@ int main(int argc, char *argv[]) {
 
 	if (!surface) goto clean;
 
+	char *title_default = NULL;
+
 	if (!options.title) {
-		// set title to the last component of filename
+		// if title isn't set, set it to the last component of filename
 		options.title = strrchr(filename, '/');
 		if (!options.title) options.title = filename;
 		else ++options.title;
+
+		title_default = malloc(strlen(options.title) + 16);
+		if (!title_default) {
+			warn("malloc");
+			goto clean;
+		}
+
+		sprintf(title_default, "%s - %s", options.title, EXEC);
+		options.title = title_default;
 	}
 
 	// create window
@@ -191,6 +201,7 @@ int main(int argc, char *argv[]) {
 	);
 
 	if (options.position_set) {
+		// set window position
 		SDL_SetWindowPosition(window, options.position.x, options.position.y);
 	}
 
@@ -316,6 +327,7 @@ int main(int argc, char *argv[]) {
 	if (surface) SDL_FreeSurface(surface);
 	IMG_Quit();
 	SDL_Quit();
+	if (title_default) free(title_default);
 
 	return ret;
 }
