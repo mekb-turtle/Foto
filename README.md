@@ -38,7 +38,6 @@ Find the following dependencies in your package manager or elsewhere:
 - `sdl2`
 - `sdl2_image`
 - `pandoc` (only needed when building man pages)
-- `file`/`libmagic` (usually comes with your system)
 
 ```bash
 git clone https://github.com/mekb-turtle/foto.git
