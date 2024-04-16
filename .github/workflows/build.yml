@@ -18,7 +18,7 @@ jobs:
       run: sudo apt -y install build-essential libsdl2-dev libsdl2-image-dev pandoc
 
     - name: Make foto
-      run: make RELEASE=1 clean build man
+      run: make RELEASE=1 clean all man
 
     - name: Upload binary and manpage
       uses: actions/upload-artifact@v3
@@ -26,4 +26,4 @@ jobs:
         name: foto
         path: |
           build/release/bin/foto
-          build/release/man/man1
+          build/man/foto.1
