@@ -12,6 +12,8 @@
 #include "./arg.h"
 #include "./image.h"
 
+#define PROGRAM_NAME "foto"
+
 // long options with getopt
 static struct option options_getopt[] = {
 		{"help",       no_argument,       0, 'h'},
@@ -68,7 +70,7 @@ int main(int argc, char *argv[]) {
 -r --hotreload: Reloads image when it is modified, will not work with stdin\n\
 -1 --sigusr1: Allows the SIGUSR1 signal to resize_window the window to the size of the image\n\
 -2 --sigusr2: Allows the SIGUSR2 signal to reload_image the image on demand\n\
-", EXEC);
+", PROGRAM_NAME);
 
 			return 0;
 		} else if (opt == 'V') {
@@ -185,7 +187,7 @@ int main(int argc, char *argv[]) {
 			goto clean;
 		}
 
-		sprintf(title_default, "%s - %s", options.title, EXEC);
+		sprintf(title_default, "%s - %s", options.title, PROGRAM_NAME);
 		options.title = title_default;
 	}
 

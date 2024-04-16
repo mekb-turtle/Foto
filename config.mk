@@ -1,8 +1,7 @@
-EXEC = foto
-VERSION = v2.0.0
+TARGET = foto
+VERSION = 2.1.0
 
-CC = cc
-CFLAGS = -Wall
-CPPFLAGS =
-LDFLAGS =
-LDLIBS = -lSDL2 -lSDL2_image
+EXTRA_SRC_FILES =
+EXTRA_BINARY_FILES =
+LDLIBS += -lSDL2 -lSDL2_image
+CFLAGS += -Wall
