@@ -39,7 +39,7 @@ SDL_Rect get_fit_mode(SDL_Point image_size_, SDL_Point window_size_) {
 	}
 }
 
-struct lconv get_lconv() {
+struct lconv *get_lconv() {
 	static struct lconv *lconv = NULL;
 	if (!lconv) lconv = localeconv();
 	return lconv;

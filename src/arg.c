@@ -13,15 +13,27 @@ bool is_num(char *str) {
 	// locale-aware
 	char *plus = str_fallback(get_lconv()->positive_sign, "+");
 	char *minus = str_fallback(get_lconv()->negative_sign, "-");
-	// see if a char* is entirely digits (optionally with a leading +/-)
+	size_t plus_len = strlen(plus);
+	size_t minus_len = strlen(minus);
+	// see if a char* is entirely digits (optionally with a leading '+' or '-' string)
 	if (!*str) return false;
-	for (bool first = true; *str; ++str, first = false) {
+	for (bool first = true; *str; first = false) {
 		if (!isdigit(*str)) {
-			if (first && (*str == plus || *str == minus)) {
-				continue;
+			if (first) {
+				// if the '+' string is encountered, skip it
+				if ((strncmp(str, plus, plus_len) == 0)) {
+					str += plus_len;
+					continue;
+				}
+				// if the '-' string is encountered, skip it
+				if ((strncmp(str, minus, minus_len) == 0)) {
+					str += minus_len;
+					continue;
+				}
 			}
+			return false;
 		}
-		return false;
+		++str;
 	}
 	return true;
 }
