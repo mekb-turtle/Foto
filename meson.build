@@ -1,5 +1,5 @@
 project('Foto', 'c',
-  version: '3.0.0',
+  version: '3.0.1',
   license: 'MPL-2.0',
   default_options: ['warning_level=3'])
 
@@ -17,7 +17,7 @@ add_project_arguments(
   f'-DPROJECT_URL="@url@"',
   language : 'c')
 
-exe = executable('Foto', sources: src, install: true, dependencies: [
+exe = executable('foto', sources: src, install: true, dependencies: [
   dependency('SDL2'),
   dependency('SDL2_image'),
 ])
