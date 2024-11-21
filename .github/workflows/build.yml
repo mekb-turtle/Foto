@@ -1,0 +1,29 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: sudo apt -y install build-essential libsdl2-dev libsdl2-image-dev pandoc
+
+    - name: Make foto
+      run: make RELEASE=1 clean all man
+
+    - name: Upload binary and manpage
+      uses: actions/upload-artifact@v3
+      with:
+        name: foto
+        path: |
+          build/release/bin/foto
+          build/man/foto.1
