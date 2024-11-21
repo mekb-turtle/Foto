@@ -12,21 +12,19 @@
 #include "./arg.h"
 #include "./image.h"
 
-#define PROGRAM_NAME "foto"
-
 // long options with getopt
 static struct option options_getopt[] = {
-		{"help",       no_argument,       0, 'h'},
-		{"version",    no_argument,       0, 'V'},
-		{"title",      required_argument, 0, 't'},
-		{"position",   required_argument, 0, 'p'},
-		{"size",       required_argument, 0, 's'},
-		{"background", required_argument, 0, 'b'},
-		{"stretch",    no_argument,       0, 'S'},
-		{"hotreload",  no_argument,       0, 'r'},
-		{"sigusr1",    no_argument,       0, '1'},
-		{"sigusr2",    no_argument,       0, '2'},
-		{0, 0,                            0, 0}
+        {"help",       no_argument,       0, 'h'},
+        {"version",    no_argument,       0, 'V'},
+        {"title",      required_argument, 0, 't'},
+        {"position",   required_argument, 0, 'p'},
+        {"size",       required_argument, 0, 's'},
+        {"background", required_argument, 0, 'b'},
+        {"stretch",    no_argument,       0, 'S'},
+        {"hotreload",  no_argument,       0, 'r'},
+        {"sigusr1",    no_argument,       0, '1'},
+        {"sigusr2",    no_argument,       0, '2'},
+        {0,            0,                 0, 0  }
 };
 
 bool resize_window = false, reload_image = false;
@@ -39,6 +37,31 @@ void sigusr2_handler() {
 	reload_image = true;
 }
 
+SDL_Window *window = NULL;
+SDL_Renderer *renderer = NULL;
+SDL_Surface *surface = NULL;
+SDL_Texture *texture = NULL;
+char *title_default = NULL;
+bool sdl_init = false, sdl_image_init = false;
+
+void cleanup() {
+	printf("Cleaning up\n");
+	if (renderer) SDL_DestroyRenderer(renderer);
+	if (window) SDL_DestroyWindow(window);
+	if (texture) SDL_DestroyTexture(texture);
+	if (surface) SDL_FreeSurface(surface);
+	if (sdl_image_init) IMG_Quit();
+	if (sdl_init) SDL_Quit();
+	if (title_default) free(title_default);
+	renderer = NULL;
+	window = NULL;
+	texture = NULL;
+	surface = NULL;
+	sdl_image_init = false;
+	sdl_init = false;
+	title_default = NULL;
+}
+
 int main(int argc, char *argv[]) {
 	// arguments
 	struct {
@@ -47,8 +70,14 @@ int main(int argc, char *argv[]) {
 		SDL_Point position, size;
 		SDL_Color background;
 	} options = {
-			.title = NULL,
-			.stretch = false, .hot_reload = false, .sigusr1 = false, .sigusr2 = false, .position_set = false, .size_set = false, .background_set = false,
+	        .title = NULL,
+	        .stretch = false,
+	        .hot_reload = false,
+	        .sigusr1 = false,
+	        .sigusr2 = false,
+	        .position_set = false,
+	        .size_set = false,
+	        .background_set = false,
 	};
 
 	bool invalid = false; // don't immediately exit when invalid argument, so we can still use --help
@@ -70,17 +99,22 @@ int main(int argc, char *argv[]) {
 -r --hotreload: Reloads image when it is modified, will not work with stdin\n\
 -1 --sigusr1: Allows the SIGUSR1 signal to resize_window the window to the size of the image\n\
 -2 --sigusr2: Allows the SIGUSR2 signal to reload_image the image on demand\n\
-", PROGRAM_NAME);
+",
+			       PROJECT_NAME);
 
 			return 0;
 		} else if (opt == 'V') {
-			printf("Version: "VERSION"\n");
+			printf("%s %s\n", PROJECT_NAME, PROJECT_VERSION);
+#ifdef PROJECT_URL
+			printf("See more at %s\n", PROJECT_URL);
+#endif
 			return 0;
 		} else if (!invalid) {
 			switch (opt) {
 				case 't':
 					if (options.title) invalid = true;
-					else options.title = optarg;
+					else
+						options.title = optarg;
 					break;
 				case 'p':
 					if (options.position_set) break;
@@ -137,32 +171,29 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	int ret = 1;
-
 	char *filename = argv[optind];
 
-	SDL_Window *window = NULL;
-	SDL_Renderer *renderer = NULL;
-	SDL_Surface *surface = NULL;
-	SDL_Texture *texture = NULL;
-	char *title_default = NULL;
+	atexit(cleanup);
 
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 		warnx("Failed to initialize SDL: %s", SDL_GetError());
-		goto clean;
+		return 1;
 	}
+
+	sdl_init = true;
 
 	if (!(IMG_Init(-1))) {
 		// if it fails to load every image type
 		// not any image type, because we don't want to require libavif if the image is png for example
 		fprintf(stderr, "%s\n", IMG_GetError());
 		warnx("Failed to initialize SDL image");
-		goto clean;
+		return 1;
 	}
 
-	FILE *fp = open_file(filename);
+	sdl_image_init = true;
 
-	if (!fp) goto clean;
+	FILE *fp = open_file(filename);
+	if (!fp) return 1;
 
 	if (fp == stdin && options.hot_reload) {
 		warnx("Cannot hot-reload with stdin");
@@ -170,36 +201,34 @@ int main(int argc, char *argv[]) {
 	}
 
 	surface = read_file(fp);
-
 	close_file(fp);
-
-	if (!surface) goto clean;
+	if (!surface) return 1;
 
 	if (!options.title) {
 		// if title isn't set, set it to the last component of filename
 		options.title = strrchr(filename, '/');
 		if (!options.title) options.title = filename;
-		else ++options.title;
+		else
+			++options.title;
 
 		title_default = malloc(strlen(options.title) + 16);
 		if (!title_default) {
 			warn("malloc");
-			goto clean;
+			return 1;
 		}
 
-		sprintf(title_default, "%s - %s", options.title, PROGRAM_NAME);
+		sprintf(title_default, "%s - %s", options.title, PROJECT_NAME);
 		options.title = title_default;
 	}
 
 	// create window
 	window = SDL_CreateWindow(
-			options.title,
-			options.position_set ? options.position.x : SDL_WINDOWPOS_UNDEFINED,
-			options.position_set ? options.position.y : SDL_WINDOWPOS_UNDEFINED,
-			options.size_set ? options.size.x : surface->w,
-			options.size_set ? options.size.y : surface->h,
-			SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
-	);
+	        options.title,
+	        options.position_set ? options.position.x : (int) SDL_WINDOWPOS_UNDEFINED,
+	        options.position_set ? options.position.y : (int) SDL_WINDOWPOS_UNDEFINED,
+	        options.size_set ? options.size.x : surface->w,
+	        options.size_set ? options.size.y : surface->h,
+	        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
 	if (options.position_set) {
 		// set window position
@@ -208,14 +237,14 @@ int main(int argc, char *argv[]) {
 
 	if (!window) {
 		warnx("Failed to create window: %s", SDL_GetError());
-		goto clean;
+		return 1;
 	}
 
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
 	if (!renderer) {
 		warnx("Failed to create renderer: %s", SDL_GetError());
-		goto clean;
+		return 1;
 	}
 
 	// set up signal handlers
@@ -223,8 +252,8 @@ int main(int argc, char *argv[]) {
 	signal(SIGUSR2, sigusr2_handler);
 
 	// variables for hot-reload
-	struct stat st; // stat
-	time_t prev_mtime = 0; // previous modification date
+	struct stat st;                      // stat
+	time_t prev_mtime = 0;               // previous modification date
 	unsigned long long last_checked = 0; // the time at when we have last checked
 
 	// main loop
@@ -252,7 +281,7 @@ int main(int argc, char *argv[]) {
 				// stat the file
 				if (stat(filename, &st) != 0) {
 					warn("stat: %s", filename);
-					goto clean;
+					return 1;
 				}
 
 				// reload if modification date has changed
@@ -268,7 +297,7 @@ int main(int argc, char *argv[]) {
 			reload_image = false;
 
 			fp = open_file(filename);
-			if (!fp) goto clean;
+			if (!fp) return 1;
 			SDL_Surface *new_surface = read_file(fp);
 			close_file(fp);
 
@@ -294,14 +323,15 @@ int main(int argc, char *argv[]) {
 
 		// find the right scaling mode to fit the image in the window
 		SDL_Rect rect;
-		if (options.stretch) rect = (SDL_Rect) {.x = 0, .y = 0, .w = window_size.x, .h = window_size.y};
-		else rect = get_fit_mode((SDL_Point) {surface->w, surface->h}, window_size);
+		if (options.stretch) rect = (SDL_Rect){.x = 0, .y = 0, .w = window_size.x, .h = window_size.y};
+		else
+			rect = get_fit_mode((SDL_Point){surface->w, surface->h}, window_size);
 
 		if (!texture) {
 			texture = SDL_CreateTextureFromSurface(renderer, surface);
 			if (!texture) {
 				warnx("Failed to create texture: %s", SDL_GetError());
-				goto clean;
+				return 1;
 			}
 		}
 
@@ -318,17 +348,5 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	ret = 0;
-
-	// clean up
-	clean:
-	if (renderer) SDL_DestroyRenderer(renderer);
-	if (window) SDL_DestroyWindow(window);
-	if (texture) SDL_DestroyTexture(texture);
-	if (surface) SDL_FreeSurface(surface);
-	IMG_Quit();
-	SDL_Quit();
-	if (title_default) free(title_default);
-
-	return ret;
+	return 0;
 }
