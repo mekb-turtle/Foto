@@ -1,12 +1,11 @@
 #include <err.h>
 #include <errno.h>
+#include <stdint.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
 #include "./image.h"
-
-#define BLOCKSIZE 1024
 
 // get file pointer from filename
 FILE *open_file(char *filename) {
@@ -31,38 +30,50 @@ void close_file(FILE *fp) {
 // get surface from file pointer
 SDL_Surface *read_file(FILE *fp) {
 	if (!fp) {
-		warnx("Failed to read file");
+		warnx("Failed to open file");
 		return NULL;
 	}
 
-	// read the file in blocks of blocksize bytes
-	// because SDL can't read from stdin
-	void *data = NULL;
-	size_t read, size = 0;
+	// read the file manually, because SDL can't read from stdin
+	uint8_t *data = NULL;
+	size_t read, size = 0, alloc = 1024;
 	while (!feof(fp) && !ferror(fp)) {
-		data = realloc(data, size + BLOCKSIZE);
 		if (!data) {
-			warnx("realloc");
-			return NULL;
+			data = malloc(alloc);
+			if (!data) {
+				warn("malloc");
+				return NULL;
+			}
+		} else {
+			alloc *= 2;
+			void *new_data = realloc(data, alloc);
+			if (!new_data) {
+				free(data);
+				warn("realloc");
+				return NULL;
+			}
+			data = new_data;
 		}
-		read = fread(data + size, 1, BLOCKSIZE, fp);
+		// read from offset at `size` to offset at `alloc`
+		read = fread(data + size, 1, alloc - size, fp);
 		if (read <= 0) break;
 		size += read;
 		if (size >= INT32_MAX) {
-			warnx("file is too large");
+			free(data);
+			warnx("File is too large");
 			return NULL;
 		}
 	}
 
 	if (ferror(fp)) {
-		warnx("ferror");
+		warnx("Error reading file");
 	}
 
 	SDL_RWops *rw = SDL_RWFromMem(data, (int) size);
 
 	if (!rw) {
 		free(data);
-		warnx("%s", IMG_GetError());
+		warnx("%s", SDL_GetError());
 		return NULL;
 	}
 
