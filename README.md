@@ -28,7 +28,7 @@ This branch is in rewrite, an AUR package is not available yet. You can install 
 
 ### Debian-based
 ```bash
-sudo apt install build-essential libsdl2-dev libsdl2-image-dev
+sudo apt install build-essential meson libsdl2-dev libsdl2-image-dev
 ```
 Then follow the instructions below
 
@@ -36,6 +36,7 @@ Then follow the instructions below
 Find the following dependencies in your package manager or elsewhere:
 - `sdl2`
 - `sdl2_image`
+- `meson`
 
 ```bash
 git clone https://github.com/mekb-turtle/foto.git
