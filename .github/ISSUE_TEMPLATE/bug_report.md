@@ -12,5 +12,9 @@ Insert detailed description of bug
 
 ### Steps to reproduce
 1. Insert steps here
-2. replace this
-3. replace this
+2. Replace this
+3. Replace this
+
+### Expected behavior
+Insert expected behavior here
+
