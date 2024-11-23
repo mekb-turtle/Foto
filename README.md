@@ -17,14 +17,12 @@ You can specify the position or size the window intially appears at, and the bac
 
 ## Installing
 ### Arch-based
-<!--If you use an AUR helper, use it instead, e.g `paru -S foto` or `paru -S foto-git`
+If you use an AUR helper, use it instead, e.g `paru -S foto` or `paru -S foto-git`
 ```bash
-git clone https://aur.archlinux.org/foto.git # use foto-git.git instead for latest commit
+git clone https://aur.archlinux.org/foto # use foto-git instead for latest commit
 cd foto
 makepkg -si
 ```
--->
-This branch is in rewrite, an AUR package is not available yet. You can install it manually by following the [instructions for "Other distros"](#other-distros).
 
 ### Debian-based
 ```bash
