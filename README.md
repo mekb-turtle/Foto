@@ -10,8 +10,8 @@
 <br/>
 
 ## About The Project
-Foto is a simple image viewer written in C. It simply shows an image to the user, nothing more nothing less. It's designed to be used in scripts so there are no keybinds.
-You can specify the position or size the window intially appears at, and the background colour.
+Foto is a simple image viewer written in C. It simply shows an image to the user. It is designed to be used in scripts, so there are no keybinds or UI.
+You can specify the position and size at which the window intially appears, and additionally the background colour for letterboxing/pillarboxing or transparency.
 
 <br />
 
