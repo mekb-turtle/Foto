@@ -1,5 +1,5 @@
 project('Foto', 'c',
-  version: '3.0.1',
+  version: '4.0.0',
   license: 'MPL-2.0',
   default_options: ['warning_level=3'])
 

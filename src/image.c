@@ -5,6 +5,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
+#include "./util.h"
 #include "./image.h"
 
 // get file pointer from filename
@@ -30,7 +31,7 @@ void close_file(FILE *fp) {
 // get surface from file pointer
 SDL_Surface *read_file(FILE *fp) {
 	if (!fp) {
-		warnx("Failed to open file");
+		eprintf("Failed to open file\n");
 		return NULL;
 	}
 
@@ -60,20 +61,20 @@ SDL_Surface *read_file(FILE *fp) {
 		size += read;
 		if (size >= INT32_MAX) {
 			free(data);
-			warnx("File is too large");
+			eprintf("File is too large\n");
 			return NULL;
 		}
 	}
 
 	if (ferror(fp)) {
-		warnx("Error reading file");
+		eprintf("Error reading file\n");
 	}
 
 	SDL_RWops *rw = SDL_RWFromMem(data, (int) size);
 
 	if (!rw) {
 		free(data);
-		warnx("%s", SDL_GetError());
+		eprintf("Failed to read image: %s\n", SDL_GetError());
 		return NULL;
 	}
 
@@ -83,7 +84,7 @@ SDL_Surface *read_file(FILE *fp) {
 	free(data);
 
 	if (!surface) {
-		warnx("%s", IMG_GetError());
+		eprintf("Failed to read image: %s\n", IMG_GetError());
 		return NULL;
 	}
 
