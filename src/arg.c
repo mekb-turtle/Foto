@@ -6,8 +6,8 @@
 
 #include <SDL2/SDL.h>
 
-#include "./arg.h"
-#include "./util.h"
+#include "arg.h"
+#include "util.h"
 
 bool is_num(char *str) {
 	// locale-aware

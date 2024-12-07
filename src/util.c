@@ -1,6 +1,6 @@
 #include <sys/time.h>
 
-#include "./util.h"
+#include "util.h"
 
 unsigned long long get_time() {
 	// get current time in ms

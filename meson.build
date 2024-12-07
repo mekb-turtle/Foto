@@ -4,7 +4,7 @@ project('Foto', 'c',
   default_options: ['warning_level=3'])
 
 # define source files
-src = files('src/main.c', 'src/arg.c', 'src/arg.h', 'src/image.c', 'src/image.h', 'src/util.c', 'src/util.h')
+src = files('src/main.c', 'src/arg.c', 'src/arg.h', 'src/image.c', 'src/image.h', 'src/util.c', 'src/util.h', 'src/term.c', 'src/term.h', 'src/color.c', 'src/color.h')
 
 # define project metadata
 url = 'https://github.com/mekb-turtle/Foto'
@@ -20,4 +20,5 @@ add_project_arguments(
 exe = executable('foto', sources: src, install: true, dependencies: [
   dependency('SDL2'),
   dependency('SDL2_image'),
+  dependency('ncurses')
 ])

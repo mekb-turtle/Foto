@@ -6,13 +6,17 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <ncurses.h>
+#include <term.h>
+#undef buttons // conflicts with SDL
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-#include "./util.h"
-#include "./arg.h"
-#include "./image.h"
+#include "util.h"
+#include "arg.h"
+#include "image.h"
+#include "term.h"
 
 // long options with getopt
 static struct option options_getopt[] = {
@@ -39,7 +43,7 @@ static struct option options_getopt[] = {
         {0,            0,                 0, 0  }
 };
 
-bool sigusr1 = false, sigusr2 = false, sigwinch = false;
+bool sigusr1 = false, sigusr2 = false;
 
 void sigusr1_handler() {
 	sigusr1 = true;
@@ -49,37 +53,47 @@ void sigusr2_handler() {
 	sigusr2 = true;
 }
 
-void sigwinch_handler() {
-	sigwinch = true;
-}
-
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Surface *term_surface = NULL;
 SDL_Surface *surface = NULL;
 SDL_Texture *texture = NULL;
 char *title_default = NULL;
-bool sdl_init = false, sdl_image_init = false;
 
-struct term_cursor {
-	unsigned int x, y, width, height, scaled_width, scaled_height;
-};
-
-bool fetch_term_size(struct term_cursor *cursor) {
+bool fetch_term_size(struct position *size) {
 	struct winsize w;
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) {
 		warn("ioctl");
 		return false;
 	}
-	if (cursor) {
-		cursor->width = w.ws_col;
-		cursor->height = w.ws_row;
+	if (size) {
+		size->x = w.ws_col;
+		size->y = w.ws_row;
 	}
 	return true;
 }
 
+bool sdl_init = false, sdl_image_init = false, term_init = false;
+
+// arguments
+struct {
+	char *title;
+	bool stretch, hot_reload, sigusr1, sigusr2, position_set, size_set, background_set, terminal;
+	SDL_Point position, size;
+	SDL_Color background;
+	enum bit_depth bit_depth;
+	enum toggle_mode {
+		TOGGLE_AUTO = 0,
+		TOGGLE_OFF,
+		TOGGLE_ON
+	} unicode;
+} options = {0}; // all false/NULL/0
+
 void cleanup() {
-	printf("Cleaning up\n");
+	if (term_init) {
+		term_init = false;
+	}
+	printf("\n");
 	if (texture) SDL_DestroyTexture(texture);
 	if (renderer) SDL_DestroyRenderer(renderer);
 	if (window) SDL_DestroyWindow(window);
@@ -98,25 +112,13 @@ void cleanup() {
 	title_default = NULL;
 }
 
+bool should_reload = true;
+
+static bool should_continue() {
+	return !(sigusr1 || sigusr2 || should_reload);
+}
+
 int main(int argc, char *argv[]) {
-	// arguments
-	struct {
-		char *title;
-		bool stretch, hot_reload, sigusr1, sigusr2, position_set, size_set, background_set, terminal;
-		SDL_Point position, size;
-		SDL_Color background;
-		enum {
-			BIT_AUTO = 0,
-			BIT_4,
-			BIT_8,
-			BIT_24
-		} bit_depth;
-		enum toggle_mode {
-			TOGGLE_AUTO = 0,
-			TOGGLE_OFF,
-			TOGGLE_ON
-		} unicode;
-	} options = {0}; // all false/NULL/0
 
 	bool invalid = false; // don't immediately exit when invalid argument, so we can still use --help
 	int opt;
@@ -144,7 +146,7 @@ int main(int argc, char *argv[]) {
 -T --term --terminal: Shows the image in the terminal instead of on screen\n\
 	Highly experimental! Not functional yet\n\
 	Uses software renderer, which may be slower\n\
-	-p and -s will instead specify the image bounds on the terminal, these cannot be set separately\n\
+	-p and -s will instead specify the image bounds on the terminal, -p cannot be set without -s\n\
 \n\
 -u --unicode: Force enable unicode support for -T\n\
 -U --no-unicode: Disables unicode support for -T\n\
@@ -246,17 +248,16 @@ int main(int argc, char *argv[]) {
 			eprintf("Cannot use SIGUSR1 in terminal mode, ignoring...\n");
 			options.sigusr1 = false;
 		}
-		if (options.position_set != options.size_set) {
-			eprintf("Cannot set position or size seperately in terminal mode, ignoring...\n");
+		if (options.position_set && !options.size_set) {
+			eprintf("Cannot set position without size being set in terminal mode, ignoring...\n");
 			options.position_set = options.size_set = false;
-		}
-		if ((options.position_set || options.size_set) && options.stretch) {
-			eprintf("Cannot set position or size, while stretch is enabled in terminal mode, ignoring stretch...\n");
-			options.stretch = false;
 		}
 	} else if (options.unicode != TOGGLE_AUTO) {
 		eprintf("Cannot specify unicode support without terminal mode, ignoring...\n");
 		options.unicode = TOGGLE_AUTO;
+	} else if (options.bit_depth != BIT_AUTO) {
+		eprintf("Cannot specify bit depth without terminal mode, ignoring...\n");
+		options.bit_depth = BIT_AUTO;
 	}
 
 	char *filename = argv[optind];
@@ -331,9 +332,6 @@ int main(int argc, char *argv[]) {
 			eprintf("Failed to create renderer: %s\n", SDL_GetError());
 			return 1;
 		}
-	} else if (options.title) {
-		// print title
-		printf("\033]0;%s\007", options.title);
 	}
 
 	struct sigaction sa;
@@ -345,8 +343,6 @@ int main(int argc, char *argv[]) {
 	if (sigaction(SIGUSR1, &sa, NULL) == -1) err(1, "sigaction");
 	sa.sa_handler = sigusr2_handler;
 	if (sigaction(SIGUSR2, &sa, NULL) == -1) err(1, "sigaction");
-	sa.sa_handler = sigwinch_handler;
-	if (sigaction(SIGWINCH, &sa, NULL) == -1) err(1, "sigaction");
 
 	// variables for hot-reload
 	struct stat st;                      // stat
@@ -354,11 +350,11 @@ int main(int argc, char *argv[]) {
 	unsigned long long last_checked = 0; // the time at when we have last checked
 
 	// terminal mode
-	struct term_cursor cursor;
+	struct position term_size;
 	bool term_should_render = true;
 
 	// main loop
-	bool running = true, should_reload;
+	bool running = true;
 	while (running) {
 		// from signal handler
 		if (window && sigusr1 && options.sigusr1) {
@@ -413,27 +409,50 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-		if ((sigwinch || !renderer) && options.terminal) {
-			sigwinch = false;
-			struct term_cursor old_cursor = cursor;
-			if (!fetch_term_size(&cursor)) {
+		if (options.terminal) {
+			if (!term_init) {
+				if (setupterm(NULL, STDOUT_FILENO, NULL) != OK) {
+					eprintf("Failed to set up terminal\n");
+					return 1;
+				}
+
+				if (options.title) printf("\x1b]0;%s\007", options.title); // print title
+
+				int colors = tigetnum("colors");
+				if (colors < 256) {
+					if (options.bit_depth == BIT_AUTO) options.bit_depth = BIT_4;
+					if (options.unicode == TOGGLE_AUTO) options.unicode = TOGGLE_OFF; // unicode is probably not supported, and it won't look good with 4-bit color
+				} else if (options.bit_depth == BIT_AUTO) {
+					// https://github.com/dankamongmen/notcurses/blob/master/src/lib/termdesc.c
+					bool rgb = (tigetflag("RGB") > 0 || tigetflag("Tc") > 0);
+					if (!rgb) {
+						const char *cterm = getenv("COLORTERM");
+						rgb = cterm && (strcmp(cterm, "truecolor") == 0 || strcmp(cterm, "24bit") == 0);
+					}
+					options.bit_depth = rgb ? BIT_24 : BIT_8;
+				}
+				if (options.unicode == TOGGLE_AUTO) options.unicode = TOGGLE_ON;
+				term_init = true;
+			}
+
+			struct position old_size = term_size;
+			if (!fetch_term_size(&term_size)) {
 				eprintf("Failed to get terminal size\n");
 				return 1;
 			}
-			// if size has changed
-			if (!renderer || old_cursor.width != cursor.width || old_cursor.height != cursor.height) {
-				term_should_render = true;
-				options.unicode = TOGGLE_ON; // TODO: check if terminal supports unicode and set if auto
 
-				// dsetroy the renderer and surface
+			// if size has changed
+			if (!renderer || old_size.x != term_size.x || old_size.y != term_size.y) {
+				term_should_render = true;
+
+				// dsetroy the texture, renderer and surface
+				if (texture) SDL_DestroyTexture(texture);
+				texture = NULL;
 				if (renderer) SDL_DestroyRenderer(renderer);
 				renderer = NULL;
 				if (term_surface) SDL_FreeSurface(term_surface);
 
-				cursor.scaled_width = cursor.width;
-				cursor.scaled_height = cursor.height * (options.unicode == TOGGLE_ON ? 2 : 1);
-
-				term_surface = SDL_CreateRGBSurface(0, cursor.scaled_width, cursor.scaled_height, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
+				term_surface = SDL_CreateRGBSurface(0, term_size.x, term_size.y * (options.unicode == TOGGLE_ON ? 2 : 1), TERM_DEPTH, TERM_R_MASK, TERM_G_MASK, TERM_B_MASK, TERM_A_MASK);
 				if (!term_surface) {
 					eprintf("Failed to create terminal surface: %s\n", SDL_GetError());
 					return 1;
@@ -448,31 +467,44 @@ int main(int argc, char *argv[]) {
 		}
 
 		// set background color
-		if (!options.terminal || options.background_set)
-			SDL_SetRenderDrawColor(renderer, options.background.r, options.background.g, options.background.b, 255);
+		SDL_SetRenderDrawColor(renderer, options.background.r, options.background.g, options.background.b, 255);
 		SDL_RenderClear(renderer);
 
 		// get the size of the window
 		SDL_Point window_size;
-		if (window)
+		if (window) {
 			SDL_GetWindowSize(window, &window_size.x, &window_size.y);
-		else if (options.terminal)
-			window_size = (SDL_Point){cursor.scaled_width, cursor.scaled_height};
-		else {
+		} else if (options.terminal) {
+			if (options.size_set)
+				window_size = (SDL_Point){options.size.x, options.size.y}; // specified size
+			else
+				window_size = (SDL_Point){term_surface->w, term_surface->h}; // whole terminal size
+		} else {
 			eprintf("Window is NULL\n");
 			return 1;
 		}
 
 		// find the right scaling mode to fit the image in the window
 		SDL_Rect rect;
-		if (options.terminal && options.position_set) {
-			// set exact bounds of image in terminal
-		} else if (options.stretch) {
+		if (options.stretch) {
 			// stretch image to window/terminal size
 			rect = (SDL_Rect){.x = 0, .y = 0, .w = window_size.x, .h = window_size.y};
 		} else {
 			// fit image to window/terminal size
-			rect = get_fit_mode((SDL_Point){surface->w, surface->h}, window_size);
+			unsigned int x_mul = options.terminal && options.unicode != TOGGLE_ON ? 2u : 1u;
+			rect = get_fit_mode((SDL_Point){surface->w * (x_mul), surface->h}, window_size);
+		}
+
+		if (options.terminal) {
+			if (options.position_set) {
+				// offset by the correct position
+				rect.x += options.position.x;
+				rect.y += options.position.y;
+			} else if (options.size_set) {
+				// center the image in the terminal
+				rect.x = ((int) term_size.x - rect.w) / 2;
+				rect.y = ((int) term_size.y - rect.h) / 2;
+			}
 		}
 
 		if (!texture) {
@@ -490,20 +522,10 @@ int main(int argc, char *argv[]) {
 
 		if (term_should_render && options.terminal) {
 			term_should_render = false;
-			// TODO: draw the surface to the terminal
-			printf("render\n");
-			// testing
-			/*
-			if (IMG_SavePNG(term_surface, "test.png") != 0) {
-				eprintf("Failed to save image: %s\n", IMG_GetError());
+			if (render_image_to_terminal(term_surface, options.unicode == TOGGLE_ON, options.bit_depth, stdout, should_continue) == FAIL) {
+				eprintf("Failed to render image to terminal\n");
 				return 1;
 			}
-			*/
-			/*
-			4-bit: 16 colors
-			8-bit: 16-231: R=(n-16)/36, G=((n-16)%36)/6, B=(n-16)%6
-			24-bit: 232-255: RGB=(n-232)*10+8
-			*/
 		}
 
 		SDL_Event event;

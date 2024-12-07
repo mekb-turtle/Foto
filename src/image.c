@@ -5,8 +5,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-#include "./util.h"
-#include "./image.h"
+#include "util.h"
+#include "image.h"
 
 // get file pointer from filename
 FILE *open_file(char *filename) {
